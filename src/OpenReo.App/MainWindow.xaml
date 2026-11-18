@@ -139,6 +139,12 @@
                         </StackPanel>
                     </Border>
                     <TextBlock DockPanel.Dock="Right" Text="Qualität (alle):" Style="{StaticResource DimText}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Border DockPanel.Dock="Right" Width="1" Margin="10,10" Background="{StaticResource BorderBrush}" />
+                    <Slider x:Name="VolumeSlider" DockPanel.Dock="Right" Width="90" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                            ValueChanged="OnVolumeChanged" ToolTip="Lautstärke" IsMoveToPointEnabled="True" />
+                    <Button x:Name="MuteButton" DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Click="OnMuteClick" ToolTip="Ton stumm schalten">
+                        <TextBlock x:Name="MuteIcon" Text="&#xE767;" Style="{StaticResource Icon}" />
+                    </Button>
                 </DockPanel>
             </Border>
 

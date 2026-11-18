@@ -14,6 +14,7 @@ var urls = new List<string>();
 int count = 1, seconds = 20, tw = 768, th = 432;
 var hw = HardwareAccelerationMode.Auto;
 var transport = RtspTransport.Tcp;
+bool audio = false;
 for (int i = 0; i < args.Length; i++)
 {
     switch (args[i])
@@ -27,6 +28,7 @@ for (int i = 0; i < args.Length; i++)
             break;
         case "--hw": hw = Enum.Parse<HardwareAccelerationMode>(args[++i], true); break;
         case "--udp": transport = RtspTransport.Udp; break;
+        case "--audio": audio = true; break;
     }
 }
 if (urls.Count == 0)
@@ -69,6 +71,10 @@ for (int i = 0; i < count; i++)
     leases.Add(lease);
 }
 
+// Audio: the first stream gets a counting sink (expected: 48000 Hz * 2 ch * 2 bytes = 192000 bytes/s).
+var audioSink = new CountingAudioSink();
+if (audio && leases.Count > 0) leases[0].Stream.AudioSink = audioSink;
+
 // Simulated UI thread: consumes frames at 60 Hz like the WPF render loop.
 long consumed = 0;
 var cts = new CancellationTokenSource();
@@ -101,6 +107,7 @@ for (int s = 1; s <= seconds; s++)
     var gpu = leases.Count(l => l.Stream.Statistics.IsHardware);
     var fps = leases.Sum(l => l.Stream.Statistics.Fps);
     if (s > 3) { cpuSum += cpuPct; cpuSamples++; }
+    if (audio) Console.WriteLine($"       audio {leases[0].Stream.AudioCodec ?? "-"}: {Interlocked.Exchange(ref audioSink.Bytes, 0)} bytes/s PCM");
     Console.WriteLine($"[{s,3}s] playing {playing}/{count}  gpu {gpu}  total fps {fps,7:0.0}  CPU {cpuPct,5:0.0}%  RAM {proc.WorkingSet64 / 1048576,5} MB  presented {Interlocked.Exchange(ref consumed, 0)}");
 }
 
@@ -113,3 +120,9 @@ Console.WriteLine($"Average CPU (after warm-up): {(cpuSamples > 0 ? cpuSum / cpu
 cts.Cancel();
 foreach (var l in leases) l.Release(true);
 return 0;
+
+sealed class CountingAudioSink : IAudioSink
+{
+    public long Bytes;
+    public void Write(ReadOnlySpan<byte> pcm) => Interlocked.Add(ref Bytes, pcm.Length);
+}

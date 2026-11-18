@@ -26,6 +26,10 @@ OpenReo is a standalone Windows client (C# / .NET 8 / WPF) for live monitoring o
 - **Zoom/pan**: mouse wheel zoom (up to 16×) around the cursor, drag to pan, middle mouse button or
   context menu resets – independently per tile. When zoomed, frames are prepared at a higher resolution
   so the picture stays sharp.
+- **Audio**: speaker icon in each tile (or context menu) plays the sound of that camera – one camera at a
+  time, volume and mute in the toolbar. The audio track is always received (Reolink AAC, ~32–64 kbit/s) but
+  only decoded while listening, so switching the sound on never reconnects the stream. Playback latency is
+  kept around 100 ms. The camera must have "record audio" enabled (camera settings → streams).
 - **Robustness**: connection failures only affect the camera concerned ("offline" with error message and
   countdown), automatic reconnect with exponential back-off. Streams are reused across layout changes
   (no reconnects).
@@ -102,6 +106,7 @@ src/
     FFmpegLoader            – loads the native DLLs, redirects FFmpeg logs
     HardwareAcceleration    – shared GPU devices (CUDA / D3D11VA / DXVA2), format selection
     VideoDecoder            – H.264/H.265, GPU with automatic software fallback
+    AudioDecoder            – AAC/G.711/… → 48 kHz stereo PCM (decoded only while audible)
     GpuScaler               – scaling on the GPU (scale_cuda) before download
     FrameConverter          – NV12/YUV → BGRA at display size (swscale), correct color space
     FrameExchange           – triple buffer between decoder thread and UI thread
@@ -113,6 +118,7 @@ src/
     Controls/MultiViewPanel – multiview manager: layout grid, tile pool, maximize, assignment
     Controls/VideoTile      – video, overlay, zoom/pan, drag & drop, context menu
     Video/RenderLoop        – copies new frames once per display refresh into WriteableBitmaps
+    Audio/                  – audio player (NAudio) and controller for the audible camera
     CameraSettings/         – camera settings window (generated forms, schedule editor, PTZ)
     Dialogs/                – camera, ONVIF discovery, settings, layout editor
 tools/
@@ -154,7 +160,8 @@ files played in real time) and an unreachable RTSP camera:
 
 Camera settings: `tools\OpenReo.UiTest` opens the settings window against a simulated Reolink API (old
 and V20 firmware formats including responses captured from a real camera, unsupported commands, wrong
-password) and verifies among other things that only changed fields are sent (49 checks, all passing).
+password) and verifies among other things that only changed fields are sent; it also checks the audio chain (decode,
+playback, latency, switching off) with a test video containing an AAC track (54 checks, all passing).
 
 **Not tested yet** (no hardware available in the development environment): real Reolink cameras
 (including writing camera settings), ONVIF discovery and profile queries against real devices, connection
@@ -174,7 +181,6 @@ tools\OpenReo.StreamBench\bin\Release\net8.0-windows\OpenReo.StreamBench.exe `
 - The FFmpeg filters `scale_d3d11`/`scale_d3d12` (FFmpeg 8.1) cannot allocate output textures for
   decoder surfaces. With D3D11VA, scaling is therefore done on the CPU (more PCIe transfer); with
   25 × 4K about 21 instead of 25 fps were measured. On NVIDIA, CUDA is preferred for that reason.
-- No audio playback (video only by design, saves bandwidth).
 - Recording and playback inside OpenReo are not part of this version.
 - User interface only in German so far.
 

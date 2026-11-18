@@ -7,7 +7,8 @@
   .\build.ps1 -SkipInstaller  # only publish
 #>
 param(
-    [string]$Version = "1.0.0",
+    # Defaults to the <Version> in src\OpenReo.App\OpenReo.App.csproj
+    [string]$Version,
     [switch]$SkipInstaller,
     # Alternative publish folder (e.g. while OpenReo is running from artifacts\publish)
     [string]$PublishDir
@@ -16,6 +17,9 @@ param(
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $artifacts = Join-Path $root "artifacts"
+if (-not $Version) {
+    $Version = ([xml](Get-Content (Join-Path $root "src\OpenReo.App\OpenReo.App.csproj"))).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+}
 $publish = if ($PublishDir) { [IO.Path]::GetFullPath($PublishDir) } else { Join-Path $artifacts "publish" }
 
 # Never delete a folder OpenReo is currently running from (would leave a half deleted installation).

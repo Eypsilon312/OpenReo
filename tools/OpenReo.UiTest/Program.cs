@@ -173,7 +173,7 @@ internal static class Program
         // ---------------------------------------------------------------- older firmware (real camera format)
         using (var old = new FakeReolinkCamera(legacy: true))
         {
-            var cfg = new CameraConfig { Name = "Hauseingang", Host = "localhost", HttpPort = old.Port, Username = "admin", Password = "pw" };
+            var cfg = new CameraConfig { Name = "Legacy-Kamera", Host = "localhost", HttpPort = old.Port, Username = "admin", Password = "pw" };
             var w = new CameraSettingsWindow(cfg);
             w.Show();
             var list = (ListBox)w.FindName("PageList");
@@ -216,6 +216,32 @@ internal static class Program
                 "Zeitplan „Dauerhaft Mo–Fr“ wird korrekt als 0/1-Plan gesendet");
             w.Close();
         }
+
+        // ---------------------------------------------------------------- audio chain (optional: args[1] = video file with audio track)
+        if (args.Length > 1 && File.Exists(args[1]))
+        {
+            OpenReo.Video.FFmpegLoader.Initialize();
+            using var streams = new OpenReo.Video.StreamManager(new OpenReo.Video.StreamOptions(HardwareAccelerationMode.Auto, RtspTransport.Tcp, true, 10, 10), TimeSpan.Zero);
+            var audioCam = new CameraConfig { Name = "Ton-Test", Username = "", ClearPath = args[1], MidPath = args[1], LowPath = args[1], Quality = StreamQuality.Mid };
+            var lease = streams.Acquire(audioCam, StreamQuality.Mid);
+            lease.SetTargetSize(640, 360);
+            using var audio = new OpenReo.App.Audio.AudioController(streams);
+            audio.Player.Muted = true; // test silently
+            audio.SetCamera(audioCam.Id);
+            audio.Update(id => id == audioCam.Id ? audioCam : null);
+            Check(lease.Stream.AudioSink == audio.Player, "Ton: Player hängt am Stream der gewählten Kamera");
+            var buffer = (NAudio.Wave.BufferedWaveProvider)typeof(OpenReo.App.Audio.AudioPlayer).GetField("_buffer", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(audio.Player)!;
+            Check(WaitUntil(() => buffer.BufferedBytes > 0, 8000), $"Ton: PCM-Daten kommen an (Codec {lease.Stream.AudioCodec})");
+            var output = (NAudio.Wave.WaveOutEvent?)typeof(OpenReo.App.Audio.AudioPlayer).GetField("_output", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(audio.Player);
+            Check(output?.PlaybackState == NAudio.Wave.PlaybackState.Playing, $"Ton: Ausgabe läuft ({output?.PlaybackState})");
+            Thread.Sleep(1500);
+            Check(buffer.BufferedDuration <= TimeSpan.FromMilliseconds(600), $"Ton: Latenz begrenzt (Puffer {buffer.BufferedDuration.TotalMilliseconds:0} ms)");
+            audio.Toggle(audioCam.Id);
+            audio.Update(id => id == audioCam.Id ? audioCam : null);
+            Check(lease.Stream.AudioSink == null && output?.PlaybackState != NAudio.Wave.PlaybackState.Playing, "Ton aus: Stream entkoppelt, Ausgabe gestoppt");
+            lease.Release(true);
+        }
+        else Console.WriteLine("SKIP  Ton-Test (keine Testdatei mit Audiospur angegeben)");
 
         Console.WriteLine(_failures == 0 ? "\nALLE TESTS BESTANDEN" : $"\n{_failures} TEST(S) FEHLGESCHLAGEN");
         app.Shutdown();

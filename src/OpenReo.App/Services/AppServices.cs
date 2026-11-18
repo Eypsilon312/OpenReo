@@ -20,6 +20,7 @@ public sealed class AppServices : IDisposable
     public CameraManager Cameras { get; }
     public LayoutManager Layouts { get; }
     public StreamManager Streams { get; }
+    public Audio.AudioController Audio { get; }
 
     public AppServices(ConfigurationManager config)
     {
@@ -27,6 +28,10 @@ public sealed class AppServices : IDisposable
         Cameras = new CameraManager(config.Current.Cameras);
         Layouts = new LayoutManager(config.Current);
         Streams = new StreamManager(StreamOptions.From(Settings), TimeSpan.FromSeconds(Settings.StreamReleaseDelaySeconds));
+
+        Audio = new Audio.AudioController(Streams);
+        Audio.Player.Volume = (float)Settings.AudioVolume;
+        Audio.Player.Muted = Settings.AudioMuted;
 
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); Config.Save(); };
@@ -67,6 +72,7 @@ public sealed class AppServices : IDisposable
     public void Dispose()
     {
         SaveNow();
+        Audio.Dispose();
         Streams.Dispose();
     }
 }

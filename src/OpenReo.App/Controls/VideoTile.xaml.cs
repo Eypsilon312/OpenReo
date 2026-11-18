@@ -23,6 +23,8 @@ public interface ITileHost
     void SetCameraQuality(CameraViewModel camera, StreamQuality quality);
     void EditCamera(CameraViewModel camera);
     void OpenCameraSettings(CameraViewModel camera);
+    Guid? AudioCameraId { get; }
+    void ToggleAudio(CameraViewModel camera);
 }
 
 /// <summary>
@@ -69,6 +71,12 @@ public partial class VideoTile : UserControl
         Root.Drop += OnDrop;
         Root.ContextMenuOpening += OnContextMenuOpening;
         Root.ContextMenu = new ContextMenu();
+        AudioButton.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true; // no selection / drag / maximize
+            if (Camera != null) _host.ToggleAudio(Camera);
+            RefreshOverlay();
+        };
         UpdateStaticOverlay();
     }
 
@@ -218,6 +226,20 @@ public partial class VideoTile : UserControl
         }
         ZoomText.Visibility = _zoom > 1.001 ? Visibility.Visible : Visibility.Collapsed;
         ZoomText.Text = $"{_zoom:0.0}×";
+        RefreshAudioIcon(s);
+    }
+
+    private void RefreshAudioIcon(RtspStream s)
+    {
+        bool active = _host.AudioCameraId == Camera?.Id;
+        bool hasAudio = s.AudioCodec != null;
+        AudioIcon.Text = active ? "\uE767" : "\uE74F"; // Volume / Mute
+        AudioIcon.Foreground = active ? Brushes.White : new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF));
+        AudioButton.Background = active ? (Brush)FindResource("AccentBrush") : new SolidColorBrush(Color.FromArgb(0x80, 0, 0, 0));
+        AudioButton.Opacity = hasAudio || s.Status != StreamStatus.Playing ? 1.0 : 0.45;
+        AudioButton.ToolTip = s.Status == StreamStatus.Playing && !hasAudio
+            ? "Diese Kamera sendet keinen Ton.\nIn den Kameraeinstellungen → Streams „Audio aufzeichnen“ aktivieren."
+            : active ? $"Ton aus ({s.AudioCodec})" : "Ton dieser Kamera wiedergeben";
     }
 
     // ------------------------------------------------------------------ zoom & pan
@@ -368,6 +390,7 @@ public partial class VideoTile : UserControl
                 quality.Items.Add(item);
             }
             menu.Items.Add(quality);
+            menu.Items.Add(Item(_host.AudioCameraId == cam.Id ? "Ton aus" : "Ton wiedergeben", () => _host.ToggleAudio(cam)));
             menu.Items.Add(new Separator());
             menu.Items.Add(Item(_host.IsMaximized ? "Zurück zur Mehrfachansicht" : "Maximieren", () => _host.TileDoubleClicked(this), "Doppelklick"));
             menu.Items.Add(Item("Zoom zurücksetzen", ResetZoom, "Mittlere Maustaste", _zoom > 1.001));

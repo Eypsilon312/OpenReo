@@ -32,6 +32,10 @@ public sealed class AppSettings
 
     public bool StartInFullscreen { get; set; }
 
+    /// <summary>Audio volume 0..1 and mute state (the audible camera itself is not restored – start silent).</summary>
+    public double AudioVolume { get; set; } = 0.8;
+    public bool AudioMuted { get; set; }
+
     /// <summary>Remember the last used camera credentials and pre-fill them for further cameras.</summary>
     public bool RememberCredentials { get; set; } = true;
     public string? DefaultUsername { get; set; }

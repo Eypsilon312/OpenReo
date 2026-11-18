@@ -12,6 +12,8 @@ public interface IViewerActions
     void SetCameraQuality(CameraViewModel camera, StreamQuality quality);
     void EditCamera(CameraViewModel camera);
     void OpenCameraSettings(CameraViewModel camera);
+    Guid? AudioCameraId { get; }
+    void ToggleAudio(CameraViewModel camera);
 }
 
 /// <summary>
@@ -105,6 +107,8 @@ public sealed class MultiViewPanel : Grid, ITileHost
     public void SetCameraQuality(CameraViewModel camera, StreamQuality quality) => _actions.SetCameraQuality(camera, quality);
     public void EditCamera(CameraViewModel camera) => _actions.EditCamera(camera);
     public void OpenCameraSettings(CameraViewModel camera) => _actions.OpenCameraSettings(camera);
+    public Guid? AudioCameraId => _actions.AudioCameraId;
+    public void ToggleAudio(CameraViewModel camera) => _actions.ToggleAudio(camera);
 
     // Layout ------------------------------------------------------------------
 

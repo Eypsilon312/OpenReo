@@ -72,6 +72,19 @@ public sealed unsafe class RtspStream : IDisposable
     public DateTime? NextRetryUtc { get; private set; }
     public StreamStatistics Statistics { get; private set; } = StreamStatistics.Empty;
 
+    private volatile IAudioSink? _audioSink;
+    private volatile bool _audioFailed;
+
+    /// <summary>Audio codec of the current connection, or null if the camera sends no audio.</summary>
+    public string? AudioCodec { get; private set; }
+
+    /// <summary>Destination for decoded audio (null = audio is received but not decoded).</summary>
+    public IAudioSink? AudioSink
+    {
+        get => _audioSink;
+        set { _audioSink = value; if (value != null) _audioFailed = false; }
+    }
+
     /// <summary>Raised on the worker thread when <see cref="Status"/> changes.</summary>
     public event Action<RtspStream>? StatusChanged;
 
@@ -252,6 +265,7 @@ public sealed unsafe class RtspStream : IDisposable
         AVFrame* frame = null;
         VideoDecoder? decoder = null;
         FrameConverter? converter = null;
+        AudioDecoder? audio = null;
         bool hadFrames = false;
         string url;
         StreamOptions opt;
@@ -270,7 +284,9 @@ public sealed unsafe class RtspStream : IDisposable
 
             AVDictionary* dict = null;
             ffmpeg.av_dict_set(&dict, "rtsp_transport", opt.Transport == RtspTransport.Udp ? "udp" : "tcp", 0);
-            ffmpeg.av_dict_set(&dict, "allowed_media_types", "video", 0); // audio is not needed – saves bandwidth
+            // Audio is always received (Reolink AAC: ~32–64 kbit/s) but only decoded while someone listens,
+            // so switching the sound on never requires a reconnect.
+            ffmpeg.av_dict_set(&dict, "allowed_media_types", "video+audio", 0);
             ffmpeg.av_dict_set(&dict, "timeout", (connectTimeoutMs * 1000).ToString(), 0); // socket timeout in µs
             ffmpeg.av_dict_set(&dict, "user_agent", "OpenReo", 0);
             ffmpeg.av_dict_set(&dict, "max_delay", opt.LowLatency ? "200000" : "500000", 0);
@@ -294,8 +310,10 @@ public sealed unsafe class RtspStream : IDisposable
 
             int videoIndex = ffmpeg.av_find_best_stream(fmt, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, null, 0);
             if (videoIndex < 0) throw new FFmpegException("Kein Videostream gefunden.");
+            int audioIndex = ffmpeg.av_find_best_stream(fmt, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, videoIndex, null, 0);
             for (int i = 0; i < fmt->nb_streams; i++)
-                if (i != videoIndex) fmt->streams[i]->discard = AVDiscard.AVDISCARD_ALL;
+                if (i != videoIndex && i != audioIndex) fmt->streams[i]->discard = AVDiscard.AVDISCARD_ALL;
+            AudioCodec = audioIndex >= 0 ? ffmpeg.avcodec_get_name(fmt->streams[audioIndex]->codecpar->codec_id)?.ToUpperInvariant() : null;
 
             var stream = fmt->streams[videoIndex];
             decoder = new VideoDecoder(stream->codecpar, opt.HardwareAcceleration, opt.LowLatency);
@@ -336,6 +354,7 @@ public sealed unsafe class RtspStream : IDisposable
 
                 if (pkt->stream_index != videoIndex)
                 {
+                    if (pkt->stream_index == audioIndex) HandleAudio(fmt->streams[audioIndex], pkt, ref audio);
                     ffmpeg.av_packet_unref(pkt);
                     continue;
                 }
@@ -391,10 +410,29 @@ public sealed unsafe class RtspStream : IDisposable
             if (pkt != null) ffmpeg.av_packet_free(&pkt);
             converter?.Dispose();
             decoder?.Dispose();
+            audio?.Dispose();
+            AudioCodec = null;
             if (fmt != null) ffmpeg.avformat_close_input(&fmt);
             Statistics = Statistics with { Fps = 0, BitrateKbps = 0 };
         }
         return hadFrames;
+    }
+
+    /// <summary>Decodes an audio packet if a sink is attached (decoder is created lazily, kept for the session).</summary>
+    private void HandleAudio(AVStream* stream, AVPacket* pkt, ref AudioDecoder? audio)
+    {
+        var sink = _audioSink;
+        if (sink == null || _audioFailed) return;
+        try
+        {
+            audio ??= new AudioDecoder(stream->codecpar);
+            audio.Decode(pkt, sink);
+        }
+        catch (Exception ex)
+        {
+            _audioFailed = true; // never let audio problems affect the video
+            Log.Warn($"Audio of {Name} [{Quality}] disabled: {ex.Message}");
+        }
     }
 
     /// <summary>

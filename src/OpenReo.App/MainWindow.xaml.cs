@@ -48,6 +48,10 @@ public partial class MainWindow : Window, IViewerActions
         MultiView.Initialize(_svc.Streams, _svc.Settings, this, () => _cameras);
         MultiView.ViewChanged += OnViewChanged;
 
+        VolumeSlider.Value = _svc.Settings.AudioVolume * 100;
+        UpdateMuteIcon();
+        _svc.Audio.Changed += () => { _svc.Audio.Update(id => _svc.Cameras.Find(id)); MultiView.RefreshOverlays(); };
+
         BuildLayoutButtons();
         RestoreWindowPlacement();
         RestoreView();
@@ -224,6 +228,7 @@ public partial class MainWindow : Window, IViewerActions
             case CameraChangeKind.QualityChanged:
                 FindVm(cam.Id)?.Refresh();
                 MultiView.RefreshCamera(cam.Id);
+                _svc.Audio.Update(id => _svc.Cameras.Find(id));
                 UpdateGlobalQualityButtons();
                 break;
             default:
@@ -290,6 +295,48 @@ public partial class MainWindow : Window, IViewerActions
             _svc.Settings.RememberCredentialsFrom(dlg.Result);
             _svc.Cameras.Update(dlg.Result);
         }
+    }
+
+    // ---------------------------------------------------------------- audio
+
+    public Guid? AudioCameraId => _svc.Audio.CameraId;
+
+    public void ToggleAudio(CameraViewModel camera)
+    {
+        if (!_svc.Audio.Player.IsAvailable)
+        {
+            MessageBox.Show(this, "Es wurde kein Audio-Ausgabegerät gefunden.", "Ton", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        _svc.Audio.Toggle(camera.Id);
+        if (_svc.Audio.CameraId != null && _svc.Audio.Player.Muted)
+        {
+            _svc.Audio.Player.Muted = false; // choosing a camera to listen to un-mutes
+            _svc.Settings.AudioMuted = false;
+            UpdateMuteIcon();
+        }
+    }
+
+    private void OnVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_svc == null) return;
+        _svc.Audio.Player.Volume = (float)(VolumeSlider.Value / 100.0);
+        _svc.Settings.AudioVolume = VolumeSlider.Value / 100.0;
+        _svc.RequestSave();
+    }
+
+    private void OnMuteClick(object sender, RoutedEventArgs e)
+    {
+        _svc.Audio.Player.Muted = !_svc.Audio.Player.Muted;
+        _svc.Settings.AudioMuted = _svc.Audio.Player.Muted;
+        _svc.RequestSave();
+        UpdateMuteIcon();
+    }
+
+    private void UpdateMuteIcon()
+    {
+        MuteIcon.Text = _svc.Audio.Player.Muted ? "\uE74F" : "\uE767";
+        MuteButton.ToolTip = _svc.Audio.Player.Muted ? "Ton einschalten" : "Ton stumm schalten";
     }
 
     private readonly Dictionary<Guid, CameraSettings.CameraSettingsWindow> _settingsWindows = new();
@@ -578,6 +625,7 @@ public partial class MainWindow : Window, IViewerActions
 
     private void OnUiTimer(object? sender, EventArgs e)
     {
+        _svc.Audio.Update(id => _svc.Cameras.Find(id));
         MultiView.RefreshOverlays();
         foreach (var vm in _cameras)
             vm.UpdateStatus(_svc.Streams.TryGet(vm.Id, vm.Quality));
@@ -590,7 +638,8 @@ public partial class MainWindow : Window, IViewerActions
         int cpu = playing - gpu;
         double mbit = streams.Sum(s => s.Statistics.BitrateKbps) / 1000.0;
         StatusLeft.Text = $"Streams: {playing} aktiv" + (offline > 0 ? $", {offline} offline" : "") +
-                          $"   ·   Decoder: {gpu} GPU / {cpu} CPU   ·   {mbit:0.0} Mbit/s   ·   Layout: {MultiView.Layout.Name}";
+                          $"   ·   Decoder: {gpu} GPU / {cpu} CPU   ·   {mbit:0.0} Mbit/s   ·   Layout: {MultiView.Layout.Name}" +
+                          (_svc.Audio.CameraId is Guid aid && FindVm(aid) is { } avm ? $"   ·   Ton: {avm.Name}{(_svc.Audio.Player.Muted ? " (stumm)" : "")}" : "");
 
         _process.Refresh();
         var now = DateTime.UtcNow;

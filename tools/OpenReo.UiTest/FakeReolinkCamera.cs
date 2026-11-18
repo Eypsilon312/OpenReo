@@ -70,7 +70,7 @@ public sealed class FakeReolinkCamera : IDisposable
     private void SeedLegacy()
     {
         foreach (var k in new[] { "GetFtpV20", "GetEmailV20", "GetPushV20" }) _data.Remove(k);
-        _data["GetFtp"] = (J("""{"Ftp":{"anonymous":0,"interval":30,"maxSize":400,"mode":0,"password":"","port":21,"remoteDir":"/Hauseingang/","schedule":{"enable":1,"table":"__S2__"},"server":"ftp.example.com","streamType":0,"userName":"reolink"}}""".Replace("__S2__", Sched('2'))),
+        _data["GetFtp"] = (J("""{"Ftp":{"anonymous":0,"interval":30,"maxSize":400,"mode":0,"password":"","port":21,"remoteDir":"/camera1/","schedule":{"enable":1,"table":"__S2__"},"server":"ftp.example.com","streamType":0,"userName":"ftpuser"}}""".Replace("__S2__", Sched('2'))),
             J("""{"Ftp":{"anonymous":"boolean","interval":[15,30,60,300,600,1800],"maxSize":{"max":1024,"min":10},"mode":{"max":2,"min":0},"password":"***","port":{"max":65535,"min":1},"remoteDir":{"maxLen":255},"schedule":{"enable":"boolean","table":{"maxLen":168,"minLen":168}},"server":{"maxLen":127},"streamType":{"max":2,"min":0},"userName":{"maxLen":127}}}"""));
         _data["GetEmail"] = (J("""{"Email":{"addr1":"","addr2":"","addr3":"","attachmentType":1,"interval":"5 Minutes","nickName":"","password":"","schedule":{"enable":1,"table":"__S1__"},"smtpPort":465,"smtpServer":"smtp.example.com","ssl":1,"supportTextType":1,"supportVideo":1,"textType":1,"userName":""}}""".Replace("__S1__", Sched('1'))),
             J("""{"Email":{"addr1":{"maxLen":127},"attachmentType":1,"interval":["30 Seconds","1 Minute","5 Minutes","10 Minutes","30 Minutes"],"schedule":{"enable":"boolean","table":{"maxLen":168,"minLen":168}},"smtpPort":{"max":65535,"min":1},"ssl":"boolean","textType":1}}"""));

@@ -15,7 +15,7 @@
     <RootNamespace>OpenReo.App</RootNamespace>
     <Product>OpenReo</Product>
     <Description>Native Windows viewer for Reolink IP cameras</Description>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\openreo.ico</ApplicationIcon>
     <TieredPGO>true</TieredPGO>
@@ -28,6 +28,10 @@
 
   <ItemGroup>
     <Resource Include="Assets\openreo.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 
 </Project>

@@ -6,6 +6,7 @@ OpenReo uses the following third-party software.
 |---|---|---|---|
 | [FFmpeg](https://ffmpeg.org) (libavcodec, libavformat, libavutil, libswscale, libavfilter, libswresample, libavdevice) | 8.1 – LGPL shared build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) | LGPL 2.1 or later | RTSP client, H.264/H.265 decoding (CPU and GPU), image conversion, GPU scaling |
 | [FFmpeg.AutoGen](https://github.com/Ruslan-B/FFmpeg.AutoGen) | 8.1.0 | MIT | C# bindings for the FFmpeg C API |
+| [NAudio](https://github.com/naudio/NAudio) | 2.2.1 | MIT | Audio playback (camera sound) |
 | [System.Security.Cryptography.ProtectedData](https://www.nuget.org/packages/System.Security.Cryptography.ProtectedData) | 8.0.0 | MIT | Encrypting the stored camera passwords (Windows DPAPI) |
 | .NET 8 / WPF | 8.0 | MIT | Runtime and UI framework (included self-contained in the installer) |
 
