@@ -1,0 +1,7 @@
+bin/
+obj/
+artifacts/
+.vs/
+*.user
+# Native FFmpeg build (~90 MB) – fetch with tools/get-ffmpeg.ps1
+third_party/ffmpeg/

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>x64</PlatformTarget>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenReo.Core\OpenReo.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- C# bindings for FFmpeg 8.1 (MIT). Native libraries come from third_party\ffmpeg. -->
+    <PackageReference Include="FFmpeg.AutoGen" Version="8.1.0" />
+  </ItemGroup>
+
+  <!-- Native FFmpeg libraries (LGPL shared build) – copied into the "ffmpeg" sub folder of every consuming app. -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\third_party\ffmpeg\bin\*.dll" Link="ffmpeg\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+</Project>

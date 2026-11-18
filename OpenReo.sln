@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D6D8B40F-43B2-47F7-B74F-8770CB61E39F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenReo.Core", "src\OpenReo.Core\OpenReo.Core.csproj", "{FAF7DA1F-8ECB-4EFC-B2C8-91DF429B7BE0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenReo.Video", "src\OpenReo.Video\OpenReo.Video.csproj", "{6B19F414-700F-49FE-945C-16B02483228C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenReo.App", "src\OpenReo.App\OpenReo.App.csproj", "{7E435A59-93BE-49F5-A0FD-2798B7467BD7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{9A0DC3A6-CBC6-49FB-9813-E45E10C392E3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenReo.StreamBench", "tools\OpenReo.StreamBench\OpenReo.StreamBench.csproj", "{55051BBA-73C5-4E33-850C-C4FA29263C7A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenReo.UiTest", "tools\OpenReo.UiTest\OpenReo.UiTest.csproj", "{02738CD3-A95A-49FD-B6F5-45D0C7E4334B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FAF7DA1F-8ECB-4EFC-B2C8-91DF429B7BE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FAF7DA1F-8ECB-4EFC-B2C8-91DF429B7BE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FAF7DA1F-8ECB-4EFC-B2C8-91DF429B7BE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FAF7DA1F-8ECB-4EFC-B2C8-91DF429B7BE0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B19F414-700F-49FE-945C-16B02483228C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B19F414-700F-49FE-945C-16B02483228C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B19F414-700F-49FE-945C-16B02483228C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B19F414-700F-49FE-945C-16B02483228C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7E435A59-93BE-49F5-A0FD-2798B7467BD7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7E435A59-93BE-49F5-A0FD-2798B7467BD7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7E435A59-93BE-49F5-A0FD-2798B7467BD7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7E435A59-93BE-49F5-A0FD-2798B7467BD7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{55051BBA-73C5-4E33-850C-C4FA29263C7A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{55051BBA-73C5-4E33-850C-C4FA29263C7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{55051BBA-73C5-4E33-850C-C4FA29263C7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{55051BBA-73C5-4E33-850C-C4FA29263C7A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02738CD3-A95A-49FD-B6F5-45D0C7E4334B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02738CD3-A95A-49FD-B6F5-45D0C7E4334B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02738CD3-A95A-49FD-B6F5-45D0C7E4334B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02738CD3-A95A-49FD-B6F5-45D0C7E4334B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{FAF7DA1F-8ECB-4EFC-B2C8-91DF429B7BE0} = {D6D8B40F-43B2-47F7-B74F-8770CB61E39F}
+		{6B19F414-700F-49FE-945C-16B02483228C} = {D6D8B40F-43B2-47F7-B74F-8770CB61E39F}
+		{7E435A59-93BE-49F5-A0FD-2798B7467BD7} = {D6D8B40F-43B2-47F7-B74F-8770CB61E39F}
+		{55051BBA-73C5-4E33-850C-C4FA29263C7A} = {9A0DC3A6-CBC6-49FB-9813-E45E10C392E3}
+		{02738CD3-A95A-49FD-B6F5-45D0C7E4334B} = {9A0DC3A6-CBC6-49FB-9813-E45E10C392E3}
+	EndGlobalSection
+EndGlobal

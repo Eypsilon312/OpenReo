@@ -1,0 +1,12 @@
+<!--
+  Downloads the Inno Setup compiler (ISCC.exe) from NuGet – no system wide installation required.
+  Used by build.ps1:  dotnet restore installer\InstallerTools.proj
+-->
+<Project Sdk="Microsoft.Build.NoTargets/3.7.56">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageDownload Include="Tools.InnoSetup" Version="[6.7.3]" />
+  </ItemGroup>
+</Project>
