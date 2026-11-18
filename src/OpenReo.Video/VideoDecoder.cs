@@ -1,6 +1,7 @@
 using FFmpeg.AutoGen;
 using OpenReo.Core.Diagnostics;
 using OpenReo.Core.Models;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.Video;
 
@@ -28,11 +29,11 @@ internal sealed unsafe class VideoDecoder : IDisposable
     {
         var codec = ffmpeg.avcodec_find_decoder(par->codec_id);
         if (codec == null)
-            throw new FFmpegException($"Kein Decoder für Codec {ffmpeg.avcodec_get_name(par->codec_id)} verfügbar.");
+            throw new FFmpegException(Lang.F("Kein Decoder für Codec {0} verfügbar.", ffmpeg.avcodec_get_name(par->codec_id)));
         CodecName = ffmpeg.avcodec_get_name(par->codec_id)?.ToUpperInvariant() ?? "?";
 
         _ctx = ffmpeg.avcodec_alloc_context3(codec);
-        if (_ctx == null) throw new FFmpegException("Decoder-Kontext konnte nicht erstellt werden.");
+        if (_ctx == null) throw new FFmpegException(Lang.T("Decoder-Kontext konnte nicht erstellt werden."));
         FFmpegHelper.ThrowIfError(ffmpeg.avcodec_parameters_to_context(_ctx, par), "Decoder-Parameter");
 
         _getFormat = SelectFormat;
@@ -71,7 +72,7 @@ internal sealed unsafe class VideoDecoder : IDisposable
         {
             var err = FFmpegHelper.ErrorString(ret);
             Dispose();
-            throw new FFmpegException($"Decoder konnte nicht geöffnet werden: {err}", ret);
+            throw new FFmpegException(Lang.F("Decoder konnte nicht geöffnet werden: {0}", err), ret);
         }
     }
 

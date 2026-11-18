@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App.CameraSettings;
 
@@ -56,15 +57,15 @@ public sealed class ScheduleGrid : StackPanel
         {
             // V20: one on/off plan per trigger.
             var keys = triggers.Where(kv => IsSchedule(kv.Value)).Select(kv => kv.Key).ToList();
-            if (keys.Count == 0) { Children.Add(Info("Kein bearbeitbarer Zeitplan vorhanden.")); return; }
+            if (keys.Count == 0) { Children.Add(Info(Lang.T("Kein bearbeitbarer Zeitplan vorhanden."))); return; }
             var combo = new ComboBox { Width = 200, Margin = new Thickness(8, 0, 16, 0) };
             foreach (var k in keys)
             {
                 var plan = JsonUtil.AsString(triggers[k]) ?? "";
                 int on = plan.Count(c => c != '0');
-                combo.Items.Add(new ComboBoxItem { Content = $"{(TriggerLabels.TryGetValue(k, out var l) ? l : k)}  ({on} h)", Tag = k });
+                combo.Items.Add(new ComboBoxItem { Content = $"{(TriggerLabels.TryGetValue(k, out var l) ? Lang.T(l) : k)}  ({on} h)", Tag = k });
             }
-            header.Children.Add(Dim("Auslöser:"));
+            header.Children.Add(Dim(Lang.T("Auslöser:")));
             header.Children.Add(combo);
             SetModes(('1', "An"));
             BuildGrid();
@@ -85,7 +86,7 @@ public sealed class ScheduleGrid : StackPanel
                              || (JsonUtil.AsString(node) ?? "").Contains('2');
             if (withModes)
             {
-                SetModes(('2', "Bewegung (Alarm)"), ('1', "Dauerhaft (Timer)"));
+                SetModes(('2', Lang.T("Bewegung (Alarm)")), ('1', Lang.T("Dauerhaft (Timer)")));
                 AddLegend(("Bewegung", MotionBrush), ("Dauerhaft", TimerBrush), ("Aus", OffBrush));
             }
             else
@@ -98,23 +99,23 @@ public sealed class ScheduleGrid : StackPanel
         }
         else
         {
-            Children.Add(Info("Zeitplan-Format dieser Kamera wird nicht unterstützt – bitte in der Weboberfläche einstellen."));
+            Children.Add(Info(Lang.T("Zeitplan-Format dieser Kamera wird nicht unterstützt – bitte in der Weboberfläche einstellen.")));
             return;
         }
 
         if (_modeBox.Items.Count > 1)
         {
-            header.Children.Add(Dim("Malen mit:"));
+            header.Children.Add(Dim(Lang.T("Malen mit:")));
             header.Children.Add(_modeBox);
         }
 
         var buttons = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
-        buttons.Children.Add(Button("Alles mit gewähltem Modus", () => Fill(_ => PaintChar())));
-        buttons.Children.Add(Button("Alles aus", () => Fill(_ => '0')));
-        buttons.Children.Add(Button("Mo–Fr an, Wochenende aus", () => Fill(d => d is >= 1 and <= 5 ? PaintChar() : '0')));
+        buttons.Children.Add(Button(Lang.T("Alles mit gewähltem Modus"), () => Fill(_ => PaintChar())));
+        buttons.Children.Add(Button(Lang.T("Alles aus"), () => Fill(_ => '0')));
+        buttons.Children.Add(Button(Lang.T("Mo–Fr an, Wochenende aus"), () => Fill(d => d is >= 1 and <= 5 ? PaintChar() : '0')));
         Children.Add(buttons);
-        Children.Add(Info("Stunden anklicken oder mit gedrückter Maustaste überstreichen (ein erneuter Klick schaltet aus). " +
-                          "Reihenfolge der Tage wie in der Reolink-Oberfläche, beginnend mit Sonntag."));
+        Children.Add(Info(Lang.T("Stunden anklicken oder mit gedrückter Maustaste überstreichen (ein erneuter Klick schaltet aus). ") +
+                          Lang.T("Reihenfolge der Tage wie in der Reolink-Oberfläche, beginnend mit Sonntag.")));
     }
 
     private static bool IsSchedule(JsonNode? n) => n is JsonValue v && v.TryGetValue<string>(out var s) && s.Length == 168;
@@ -181,7 +182,7 @@ public sealed class ScheduleGrid : StackPanel
         }
         for (int d = 0; d < 7; d++)
         {
-            var label = new TextBlock { Text = Days[d], FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Style = (Style)Application.Current.Resources["DimText"] };
+            var label = new TextBlock { Text = Lang.T(Days[d]), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Style = (Style)Application.Current.Resources["DimText"] };
             Grid.SetRow(label, d + 1);
             grid.Children.Add(label);
             for (int h = 0; h < 24; h++)

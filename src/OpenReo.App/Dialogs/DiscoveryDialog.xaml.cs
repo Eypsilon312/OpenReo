@@ -7,6 +7,7 @@ using OpenReo.Core.Cameras;
 using OpenReo.Core.Models;
 using OpenReo.Core.Onvif;
 using OpenReo.Video;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App.Dialogs;
 
@@ -78,9 +79,9 @@ public partial class DiscoveryDialog : Window
     private async void OnSearchClick(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
-        SetBusy(true, "Suche läuft …");
+        SetBusy(true, Lang.T("Suche läuft …"));
         _items.Clear();
-        EmptyText.Text = "Suche nach ONVIF-Geräten …";
+        EmptyText.Text = Lang.T("Suche nach ONVIF-Geräten …");
         EmptyText.Visibility = Visibility.Visible;
         try
         {
@@ -91,26 +92,26 @@ public partial class DiscoveryDialog : Window
                 if (IsAlreadyAdded(d))
                 {
                     item.CanAdd = false;
-                    item.SetStatus("Bereits hinzugefügt", "TextDimBrush");
+                    item.SetStatus(Lang.T("Bereits hinzugefügt"), "TextDimBrush");
                 }
                 else
                 {
                     item.IsSelected = true;
-                    item.SetStatus(d.IsLikelyReolink ? "Reolink-Gerät" : "ONVIF-Gerät", "TextDimBrush");
+                    item.SetStatus(d.IsLikelyReolink ? Lang.T("Reolink-Gerät") : Lang.T("ONVIF-Gerät"), "TextDimBrush");
                 }
                 _items.Add(item);
             }
-            EmptyText.Text = "Keine Geräte gefunden.\n\nPrüfen Sie, ob ONVIF in der Kamera aktiviert ist und sich Kamera und PC im selben Netzwerk befinden. " +
-                             "Kameras können auch manuell über ihre IP-Adresse hinzugefügt werden.";
+            EmptyText.Text = Lang.T("Keine Geräte gefunden.\n\nPrüfen Sie, ob ONVIF in der Kamera aktiviert ist und sich Kamera und PC im selben Netzwerk befinden. ") +
+                             Lang.T("Kameras können auch manuell über ihre IP-Adresse hinzugefügt werden.");
             EmptyText.Visibility = _items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            SetBusy(false, $"{_items.Count} Gerät(e) gefunden.");
+            SetBusy(false, Lang.F("{0} Gerät(e) gefunden.", _items.Count));
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception ex)
         {
-            EmptyText.Text = "Suche fehlgeschlagen: " + ex.Message;
+            EmptyText.Text = Lang.T("Suche fehlgeschlagen: ") + ex.Message;
             SetBusy(false);
         }
     }
@@ -130,7 +131,7 @@ public partial class DiscoveryDialog : Window
         var selected = _items.Where(i => i.IsSelected && i.CanAdd).ToList();
         if (selected.Count == 0)
         {
-            BusyText.Text = "Keine Geräte ausgewählt.";
+            BusyText.Text = Lang.T("Keine Geräte ausgewählt.");
             return;
         }
         SetBusy(true);
@@ -140,12 +141,12 @@ public partial class DiscoveryDialog : Window
             foreach (var item in selected)
             {
                 var cfg = CreateConfig(item.Device);
-                item.SetStatus("Ermittle Streams …", "WarnBrush");
+                item.SetStatus(Lang.T("Ermittle Streams …"), "WarnBrush");
                 var progress = new Progress<string>(s => BusyText.Text = $"{item.Address}: {s}");
                 var r = await CameraStreamDetector.DetectAsync(cfg, _transport, progress, _cts.Token);
                 if (!r.Paths.ContainsKey(StreamQuality.Clear))
                 {
-                    item.SetStatus(r.AuthFailed ? "Anmeldung fehlgeschlagen" : "Keine Streams gefunden", "ErrorBrush");
+                    item.SetStatus(r.AuthFailed ? Lang.T("Anmeldung fehlgeschlagen") : Lang.T("Keine Streams gefunden"), "ErrorBrush");
                     continue;
                 }
                 foreach (var (q, path) in r.Paths) cfg.SetPath(q, path);
@@ -166,11 +167,11 @@ public partial class DiscoveryDialog : Window
                 added++;
                 item.CanAdd = false;
                 item.IsSelected = false;
-                item.SetStatus($"Hinzugefügt ✓ ({cfg.Name})", "OkBrush");
+                item.SetStatus(Lang.F("Hinzugefügt ✓ ({0})", cfg.Name), "OkBrush");
             }
         }
         catch (OperationCanceledException) { return; }
-        SetBusy(false, $"{added} Kamera(s) hinzugefügt.");
+        SetBusy(false, Lang.F("{0} Kamera(s) hinzugefügt.", added));
     }
 
     private void OnDeviceDoubleClick(object sender, MouseButtonEventArgs e)
@@ -183,7 +184,7 @@ public partial class DiscoveryDialog : Window
             _cameras.Add(dlg.Result);
             item.CanAdd = false;
             item.IsSelected = false;
-            item.SetStatus("Hinzugefügt ✓", "OkBrush");
+            item.SetStatus(Lang.T("Hinzugefügt ✓"), "OkBrush");
         }
     }
 }

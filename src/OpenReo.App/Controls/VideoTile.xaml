@@ -1,6 +1,7 @@
 <UserControl x:Class="OpenReo.App.Controls.VideoTile"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:OpenReo.App.Infrastructure"
              Focusable="True" FocusVisualStyle="{x:Null}">
     <Border x:Name="Root" Background="Black" BorderThickness="1" BorderBrush="#FF0B0C0F" ClipToBounds="True" AllowDrop="True">
         <Grid>
@@ -18,7 +19,7 @@
             <!-- Empty tile -->
             <StackPanel x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False">
                 <TextBlock Text="&#xE710;" Style="{StaticResource Icon}" FontSize="22" Foreground="#FF3A4150" />
-                <TextBlock x:Name="EmptyText" Text="Kamera hierher ziehen" Foreground="#FF4A5263" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center" />
+                <TextBlock x:Name="EmptyText" Text="{l:T 'Kamera hierher ziehen'}" Foreground="#FF4A5263" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center" />
             </StackPanel>
 
             <!-- Connection state -->

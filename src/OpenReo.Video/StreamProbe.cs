@@ -1,5 +1,6 @@
 using FFmpeg.AutoGen;
 using OpenReo.Core.Models;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.Video;
 
@@ -7,7 +8,7 @@ public sealed record StreamProbeResult(bool Success, string? Codec, int Width, i
 {
     public override string ToString() => Success
         ? $"{Codec} {Width}×{Height}" + (Fps > 0 ? $" @ {Fps:0.#} fps" : "")
-        : $"Fehler: {Error}";
+        : Lang.F("Fehler: {0}", Error);
 }
 
 /// <summary>

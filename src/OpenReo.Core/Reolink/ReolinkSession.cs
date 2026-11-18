@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenReo.Core.Diagnostics;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.Core.Reolink;
 
@@ -92,7 +93,7 @@ public sealed class ReolinkSession : IAsyncDisposable
                 Log.Debug($"Reolink API {baseUrl}: {ex.Message}");
             }
         }
-        throw new ReolinkException("Reolink-Weboberfläche/API nicht erreichbar (HTTP-Port prüfen, HTTP/HTTPS in der Kamera aktivieren).", false, last);
+        throw new ReolinkException(Lang.T("Reolink-Weboberfläche/API nicht erreichbar (HTTP-Port prüfen, HTTP/HTTPS in der Kamera aktivieren)."), false, last);
     }
 
     private async Task LoginAsync(CancellationToken ct)
@@ -106,9 +107,9 @@ public sealed class ReolinkSession : IAsyncDisposable
         var token = GetString(r?.Value, "Token", "name");
         if (r == null || !r.Ok || string.IsNullOrEmpty(token))
         {
-            var detail = r?.ErrorDetail ?? "keine Antwort";
+            var detail = r?.ErrorDetail ?? Lang.T("keine Antwort");
             bool auth = r != null && (r.RspCode is -7 or -26 or -27 || detail.Contains("login", StringComparison.OrdinalIgnoreCase) || detail.Contains("password", StringComparison.OrdinalIgnoreCase));
-            throw new ReolinkException(auth ? "Anmeldung an der Kamera fehlgeschlagen (Benutzername/Passwort prüfen)." : $"Anmeldung fehlgeschlagen: {detail}", auth);
+            throw new ReolinkException(auth ? Lang.T("Anmeldung an der Kamera fehlgeschlagen (Benutzername/Passwort prüfen).") : Lang.F("Anmeldung fehlgeschlagen: {0}", detail), auth);
         }
         _token = token;
     }
@@ -142,7 +143,7 @@ public sealed class ReolinkSession : IAsyncDisposable
 
         JsonNode? node;
         try { node = JsonNode.Parse(text, documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true }); }
-        catch (JsonException) { throw new HttpRequestException("Keine gültige Reolink-API-Antwort"); }
+        catch (JsonException) { throw new HttpRequestException(Lang.T("Keine gültige Reolink-API-Antwort")); }
 
         var list = new List<ReolinkResponse>();
         IEnumerable<JsonNode?> items = node is JsonArray arr ? arr : new[] { node };

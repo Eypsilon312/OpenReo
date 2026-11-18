@@ -3,6 +3,7 @@ using OpenReo.Core.Diagnostics;
 using OpenReo.Core.Models;
 using OpenReo.Core.Onvif;
 using OpenReo.Core.Reolink;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.Video;
 
@@ -50,7 +51,7 @@ public static class CameraStreamDetector
         }
 
         // Camera name as configured in the Reolink web interface.
-        progress?.Report("Lese Kameranamen …");
+        progress?.Report(Lang.T("Lese Kameranamen …"));
         result.DeviceName = await ReolinkApiClient.GetDeviceNameAsync(cam.Host, cam.HttpPort, cam.Username, cam.Password, cam.Channel, ct);
 
         // Reolink path probing for whatever ONVIF did not deliver.
@@ -62,7 +63,7 @@ public static class CameraStreamDetector
             foreach (var candidate in RtspUrlBuilder.ReolinkCandidates(q, cam.Channel))
             {
                 ct.ThrowIfCancellationRequested();
-                progress?.Report($"Prüfe RTSP-Pfad {candidate} …");
+                progress?.Report(Lang.F("Prüfe RTSP-Pfad {0} …", candidate));
                 var r = await StreamProbe.ProbeAsync(RtspUrlBuilder.Build(probeCam, candidate, true), transport, TimeSpan.FromSeconds(6), ct);
                 if (r.Success)
                 {
@@ -71,7 +72,7 @@ public static class CameraStreamDetector
                     break;
                 }
                 if (r.Error != null && r.Error.StartsWith("Anmeldung")) { result.AuthFailed = true; break; }
-                if (r.Error != null && (r.Error.StartsWith("Zeitüberschreitung") || r.Error.StartsWith("Verbindung abgelehnt"))) break;
+                if (r.Error != null && (r.Error.StartsWith(Lang.T("Zeitüberschreitung")) || r.Error.StartsWith(Lang.T("Verbindung abgelehnt")))) break;
             }
         }
 
@@ -80,24 +81,24 @@ public static class CameraStreamDetector
         {
             result.Paths[StreamQuality.Mid] = low;
             if (result.Probes.TryGetValue(StreamQuality.Low, out var lp)) result.Probes[StreamQuality.Mid] = lp;
-            result.Messages.Add("Kamera bietet keinen separaten mittleren Stream – Mid verwendet den Substream.");
+            result.Messages.Add(Lang.T("Kamera bietet keinen separaten mittleren Stream – Mid verwendet den Substream."));
         }
 
-        if (result.AuthFailed) result.Messages.Add("Anmeldung fehlgeschlagen – Benutzername/Passwort prüfen.");
+        if (result.AuthFailed) result.Messages.Add(Lang.T("Anmeldung fehlgeschlagen – Benutzername/Passwort prüfen."));
         return result;
     }
 
     private static async Task DetectViaOnvifAsync(CameraConfig cam, RtspTransport transport, StreamDetectionResult result,
         IProgress<string>? progress, CancellationToken ct)
     {
-        progress?.Report("Verbinde über ONVIF …");
+        progress?.Report(Lang.T("Verbinde über ONVIF …"));
         using var onvif = new OnvifClient(cam.Host, cam.OnvifPort, cam.Username, cam.Password);
         await onvif.SyncClockAsync(ct);
         try { result.DeviceInfo = await onvif.GetDeviceInformationAsync(ct); }
         catch (OnvifException ex) when (ex.IsAuthError) { throw; }
         catch (Exception ex) { Log.Debug($"GetDeviceInformation failed: {ex.Message}"); }
 
-        progress?.Report("Lese Stream-Profile …");
+        progress?.Report(Lang.T("Lese Stream-Profile …"));
         var profiles = await onvif.GetProfilesAsync(ct);
         var entries = new List<(OnvifProfile Profile, Uri Uri)>();
         foreach (var prof in profiles)
@@ -117,7 +118,7 @@ public static class CameraStreamDetector
         var channelEntries = entries.Where(e => e.Uri.PathAndQuery.Contains($"_{ch}_") || e.Uri.PathAndQuery.Contains($"/{ch}")).ToList();
         if (channelEntries.Count > 0) entries = channelEntries;
 
-        if (entries.Count == 0) throw new OnvifException("Keine Stream-Profile über ONVIF gefunden.");
+        if (entries.Count == 0) throw new OnvifException(Lang.T("Keine Stream-Profile über ONVIF gefunden."));
         result.OnvifSucceeded = true;
 
         entries = entries.OrderByDescending(e => e.Profile.Pixels).ToList();
@@ -138,7 +139,7 @@ public static class CameraStreamDetector
             if (sub.Contains("_sub", StringComparison.OrdinalIgnoreCase))
             {
                 var ext = sub.Replace("_sub", "_ext", StringComparison.OrdinalIgnoreCase);
-                progress?.Report($"Prüfe mittleren Stream {ext} …");
+                progress?.Report(Lang.F("Prüfe mittleren Stream {0} …", ext));
                 var probeCam = cam.Clone();
                 probeCam.RtspPort = result.RtspPort.Value;
                 var r = await StreamProbe.ProbeAsync(RtspUrlBuilder.Build(probeCam, ext, true), transport, TimeSpan.FromSeconds(6), ct);
@@ -147,10 +148,10 @@ public static class CameraStreamDetector
         }
         else
         {
-            result.Messages.Add("Kamera bietet nur einen Stream – alle Qualitätsstufen verwenden diesen.");
+            result.Messages.Add(Lang.T("Kamera bietet nur einen Stream – alle Qualitätsstufen verwenden diesen."));
             result.Paths[StreamQuality.Mid] = P(0);
             result.Paths[StreamQuality.Low] = P(0);
         }
-        progress?.Report($"ONVIF: {entries.Count} Stream-Profil(e) gefunden.");
+        progress?.Report(Lang.F("ONVIF: {0} Stream-Profil(e) gefunden.", entries.Count));
     }
 }

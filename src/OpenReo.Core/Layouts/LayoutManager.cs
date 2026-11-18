@@ -1,4 +1,5 @@
 using OpenReo.Core.Models;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.Core.Layouts;
 
@@ -19,18 +20,18 @@ public sealed class LayoutManager
         _config = config;
         var list = new List<LayoutDefinition>
         {
-            LayoutDefinition.Grid("1", "1 Kamera", 1, 1),
-            LayoutDefinition.Grid("2", "2 Kameras (1×2)", 1, 2),
-            LayoutDefinition.Grid("4", "4 Kameras (2×2)", 2, 2),
-            LayoutDefinition.Grid("6g", "6 Kameras (2×3)", 2, 3),
-            LayoutDefinition.WithLargeTile("1+5", "1 groß + 5", 3, 3, 0, 0, 2),
-            LayoutDefinition.WithLargeTile("1+7", "1 groß + 7", 4, 4, 0, 0, 3),
-            LayoutDefinition.Grid("9", "9 Kameras (3×3)", 3, 3),
-            LayoutDefinition.Grid("12", "12 Kameras (3×4)", 3, 4),
-            LayoutDefinition.WithLargeTile("1+12", "1 groß (Mitte) + 12", 4, 4, 1, 1, 2),
-            LayoutDefinition.Grid("16", "16 Kameras (4×4)", 4, 4),
-            LayoutDefinition.WithLargeTile("1+16", "1 groß + 16", 5, 5, 0, 0, 3),
-            LayoutDefinition.Grid("25", "25 Kameras (5×5)", 5, 5),
+            LayoutDefinition.Grid("1", Lang.T("1 Kamera"), 1, 1),
+            LayoutDefinition.Grid("2", Lang.T("2 Kameras (1×2)"), 1, 2),
+            LayoutDefinition.Grid("4", Lang.T("4 Kameras (2×2)"), 2, 2),
+            LayoutDefinition.Grid("6g", Lang.T("6 Kameras (2×3)"), 2, 3),
+            LayoutDefinition.WithLargeTile("1+5", Lang.T("1 groß + 5"), 3, 3, 0, 0, 2),
+            LayoutDefinition.WithLargeTile("1+7", Lang.T("1 groß + 7"), 4, 4, 0, 0, 3),
+            LayoutDefinition.Grid("9", Lang.T("9 Kameras (3×3)"), 3, 3),
+            LayoutDefinition.Grid("12", Lang.T("12 Kameras (3×4)"), 3, 4),
+            LayoutDefinition.WithLargeTile("1+12", Lang.T("1 groß (Mitte) + 12"), 4, 4, 1, 1, 2),
+            LayoutDefinition.Grid("16", Lang.T("16 Kameras (4×4)"), 4, 4),
+            LayoutDefinition.WithLargeTile("1+16", Lang.T("1 groß + 16"), 5, 5, 0, 0, 3),
+            LayoutDefinition.Grid("25", Lang.T("25 Kameras (5×5)"), 5, 5),
         };
         foreach (var l in list) l.IsBuiltIn = true;
         BuiltIn = list;

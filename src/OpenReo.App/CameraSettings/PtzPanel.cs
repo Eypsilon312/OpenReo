@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using OpenReo.App.Dialogs;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App.CameraSettings;
 
@@ -59,7 +60,7 @@ public sealed class PtzPanel : StackPanel
             if (_presets.SelectedItem is ListBoxItem { Tag: int id })
                 await Ptz("ToPos", new JsonObject { ["id"] = id });
         };
-        var save = new Button { Content = "Aktuelle Position als Preset speichern …" };
+        var save = new Button { Content = Lang.T("Aktuelle Position als Preset speichern …") };
         save.Click += async (_, _) => await SavePresetAsync();
         buttons.Children.Add(go);
         buttons.Children.Add(save);
@@ -110,7 +111,7 @@ public sealed class PtzPanel : StackPanel
             var p = new JsonObject { ["channel"] = _ctx.Channel, ["op"] = op, ["speed"] = (int)_speed.Value };
             if (extra != null) foreach (var (k, v) in extra) p[k] = v?.DeepClone();
             var r = await _ctx.Session.ExecuteAsync("PtzCtrl", p);
-            if (!r.Ok) await _ctx.Report($"PTZ-Befehl {op} fehlgeschlagen: {r.ErrorDetail}");
+            if (!r.Ok) await _ctx.Report(Lang.F("PTZ-Befehl {0} fehlgeschlagen: {1}", op, r.ErrorDetail));
         }
         catch (Exception ex)
         {
@@ -131,7 +132,7 @@ public sealed class PtzPanel : StackPanel
                     var id = JsonUtil.AsInt(p["id"]) ?? 0;
                     _presets.Items.Add(new ListBoxItem { Content = $"{id}: {JsonUtil.AsString(p["name"])}", Tag = id });
                 }
-            if (_presets.Items.Count == 0) _presets.Items.Add(new ListBoxItem { Content = "(keine Presets gespeichert)", IsEnabled = false });
+            if (_presets.Items.Count == 0) _presets.Items.Add(new ListBoxItem { Content = Lang.T("(keine Presets gespeichert)"), IsEnabled = false });
         }
         catch (Exception ex)
         {
@@ -141,7 +142,7 @@ public sealed class PtzPanel : StackPanel
 
     private async Task SavePresetAsync()
     {
-        var name = InputDialog.Ask(_ctx.Owner, "Preset speichern", "Name des Presets:", "Position");
+        var name = InputDialog.Ask(_ctx.Owner, "Preset speichern", Lang.T("Name des Presets:"), "Position");
         if (string.IsNullOrWhiteSpace(name)) return;
         var used = _presets.Items.OfType<ListBoxItem>().Select(i => i.Tag).OfType<int>().ToHashSet();
         int id = Enumerable.Range(1, 64).FirstOrDefault(i => !used.Contains(i));
@@ -150,7 +151,7 @@ public sealed class PtzPanel : StackPanel
         {
             ["PtzPreset"] = new JsonObject { ["channel"] = _ctx.Channel, ["enable"] = 1, ["id"] = id, ["name"] = name.Trim() },
         });
-        await _ctx.Report(r.Ok ? $"Preset {id} gespeichert." : $"Preset konnte nicht gespeichert werden: {r.ErrorDetail}");
+        await _ctx.Report(r.Ok ? Lang.F("Preset {0} gespeichert.", id) : Lang.F("Preset konnte nicht gespeichert werden: {0}", r.ErrorDetail));
         await LoadPresetsAsync();
     }
 }

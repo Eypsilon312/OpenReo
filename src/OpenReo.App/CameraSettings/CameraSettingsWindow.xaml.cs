@@ -6,6 +6,7 @@ using System.Windows.Media;
 using OpenReo.Core.Diagnostics;
 using OpenReo.Core.Models;
 using OpenReo.Core.Reolink;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App.CameraSettings;
 
@@ -32,9 +33,9 @@ public partial class CameraSettingsWindow : Window
         _onNameChanged = onNameChanged;
         _ch = Math.Max(0, camera.Channel - 1);
         _pages = SettingsCatalog.Create(_ch);
-        Title = $"Kameraeinstellungen – {camera.Name}";
+        Title = Lang.F("Kameraeinstellungen – {0}", camera.Name);
         CameraNameText.Text = camera.Name;
-        CameraInfoText.Text = camera.Channel > 1 ? $"{camera.Host} · Kanal {camera.Channel}" : camera.Host;
+        CameraInfoText.Text = camera.Channel > 1 ? Lang.F("{0} · Kanal {1}", camera.Host, camera.Channel) : camera.Host;
         ContentScroller.Visibility = Visibility.Collapsed;
 
         Loaded += async (_, _) => await ConnectAndLoadAsync();
@@ -57,7 +58,7 @@ public partial class CameraSettingsWindow : Window
         SetBusy(true);
         try
         {
-            LoadingText.Text = "Verbinde mit der Kamera …";
+            LoadingText.Text = Lang.T("Verbinde mit der Kamera …");
             _session = await ReolinkSession.ConnectAsync(_camera.Host, _camera.HttpPort, _camera.Username, _camera.Password, CancellationToken.None);
             _ctx = new SettingsContext
             {
@@ -70,15 +71,15 @@ public partial class CameraSettingsWindow : Window
             BuildNavigation();
             LoadingPanel.Visibility = Visibility.Collapsed;
             ContentScroller.Visibility = Visibility.Visible;
-            StatusText.Text = $"Verbunden über {_session.BaseUrl}";
+            StatusText.Text = Lang.F("Verbunden über {0}", _session.BaseUrl);
         }
         catch (Exception ex)
         {
             Log.Warn($"Camera settings for {_camera.Host}: {ex.Message}");
-            LoadingText.Text = "Keine Verbindung zur Kamera-API";
-            LoadingDetail.Text = ex.Message + "\n\nDie Einstellungen verwenden die Reolink-HTTP-API (Port " + _camera.HttpPort +
-                                 "). Prüfen Sie, ob HTTP/HTTPS in der Kamera aktiviert ist und der HTTP-Port in den Kamera-Eigenschaften stimmt. " +
-                                 "Akku-/WLAN-Modelle ohne Weboberfläche werden nicht unterstützt.";
+            LoadingText.Text = Lang.T("Keine Verbindung zur Kamera-API");
+            LoadingDetail.Text = ex.Message + Lang.T("\n\nDie Einstellungen verwenden die Reolink-HTTP-API (Port ") + _camera.HttpPort +
+                                 Lang.T("). Prüfen Sie, ob HTTP/HTTPS in der Kamera aktiviert ist und der HTTP-Port in den Kamera-Eigenschaften stimmt. ") +
+                                 Lang.T("Akku-/WLAN-Modelle ohne Weboberfläche werden nicht unterstützt.");
         }
         finally
         {
@@ -91,7 +92,7 @@ public partial class CameraSettingsWindow : Window
         var sections = AllSections.ToList();
         for (int i = 0; i < sections.Count; i++)
         {
-            LoadingDetail.Text = $"Lese Einstellungen ({i + 1}/{sections.Count}): {sections[i].Title}";
+            LoadingDetail.Text = Lang.F("Lese Einstellungen ({0}/{1}): {2}", i + 1, sections.Count, sections[i].Title);
             await LoadSectionAsync(sections[i]);
         }
         var ptz = _pages.FirstOrDefault(p => p.CustomContent != null);
@@ -182,7 +183,7 @@ public partial class CameraSettingsWindow : Window
             var dot = new TextBlock { Text = "●", Foreground = (Brush)FindResource("WarnBrush"), FontSize = 9, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
             var content = new StackPanel { Orientation = Orientation.Horizontal };
             content.Children.Add(new TextBlock { Text = page.Icon, Style = (Style)FindResource("Icon"), Width = 20, Margin = new Thickness(0, 0, 10, 0) });
-            content.Children.Add(new TextBlock { Text = page.Title, VerticalAlignment = VerticalAlignment.Center });
+            content.Children.Add(new TextBlock { Text = Lang.T(page.Title), VerticalAlignment = VerticalAlignment.Center });
             content.Children.Add(dot);
             _dirtyMarks[page] = dot;
             PageList.Items.Add(new ListBoxItem { Content = content, Tag = page, Padding = new Thickness(10, 8, 10, 8) });
@@ -190,7 +191,7 @@ public partial class CameraSettingsWindow : Window
         if (PageList.Items.Count == 0)
         {
             ContentPanel.Children.Clear();
-            ContentPanel.Children.Add(new TextBlock { Text = "Die Kamera meldet keine bearbeitbaren Einstellungen.", Margin = new Thickness(0, 20, 0, 0) });
+            ContentPanel.Children.Add(new TextBlock { Text = Lang.T("Die Kamera meldet keine bearbeitbaren Einstellungen."), Margin = new Thickness(0, 20, 0, 0) });
             return;
         }
         var item = PageList.Items.OfType<ListBoxItem>().FirstOrDefault(i => i.Tag == selected) ?? (ListBoxItem)PageList.Items[0];
@@ -211,7 +212,7 @@ public partial class CameraSettingsWindow : Window
     private void RenderPage(SettingsPage page)
     {
         ContentPanel.Children.Clear();
-        ContentPanel.Children.Add(new TextBlock { Text = page.Title, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 4) });
+        ContentPanel.Children.Add(new TextBlock { Text = Lang.T(page.Title), FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 4) });
 
         if (page.Actions.Count > 0)
         {
@@ -219,7 +220,7 @@ public partial class CameraSettingsWindow : Window
             foreach (var a in page.Actions)
             {
                 var action = a;
-                var b = new Button { Content = action.Label, Margin = new Thickness(0, 0, 8, 6) };
+                var b = new Button { Content = Lang.T(action.Label), Margin = new Thickness(0, 0, 8, 6) };
                 if (action.Destructive) b.Foreground = (Brush)FindResource("ErrorBrush");
                 b.Click += async (_, _) =>
                 {
@@ -258,9 +259,9 @@ public partial class CameraSettingsWindow : Window
     private Border RenderSection(SettingsSection s)
     {
         var panel = new StackPanel();
-        panel.Children.Add(new TextBlock { Text = s.Title, FontWeight = FontWeights.SemiBold, FontSize = 14, Margin = new Thickness(0, 0, 0, 8) });
+        panel.Children.Add(new TextBlock { Text = Lang.T(s.Title), FontWeight = FontWeights.SemiBold, FontSize = 14, Margin = new Thickness(0, 0, 0, 8) });
         if (s.Note != null)
-            panel.Children.Add(new TextBlock { Text = s.Note, Style = (Style)FindResource("DimText"), FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+            panel.Children.Add(new TextBlock { Text = Lang.T(s.Note), Style = (Style)FindResource("DimText"), FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });
@@ -283,10 +284,10 @@ public partial class CameraSettingsWindow : Window
             if (!seen.Add(f.Label + f.Kind) && f.Kind == FieldKind.Bool01) continue; // e.g. scheduleEnable vs schedule.enable
             int row = grid.RowDefinitions.Count;
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var label = new TextBlock { Text = f.Label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 5, 12, 5), TextWrapping = TextWrapping.Wrap };
+            var label = new TextBlock { Text = Lang.T(f.Label), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 5, 12, 5), TextWrapping = TextWrapping.Wrap };
             if (f.Hint != null)
             {
-                label.ToolTip = f.Hint;
+                label.ToolTip = Lang.T(f.Hint);
                 label.Text += "  ⓘ";
             }
             Grid.SetRow(label, row);
@@ -312,8 +313,8 @@ public partial class CameraSettingsWindow : Window
     }
 
     private static string Display(FieldSpec f, string value) =>
-        f.Labels != null && f.Labels.TryGetValue(value, out var l) ? l
-        : SettingsCatalog.ValueLabels.TryGetValue(value, out var g) ? g
+        f.Labels != null && f.Labels.TryGetValue(value, out var l) ? Lang.T(l)
+        : SettingsCatalog.ValueLabels.TryGetValue(value, out var g) ? Lang.T(g)
         : value;
 
     private FrameworkElement? CreateControl(SettingsSection s, FieldSpec f)
@@ -430,7 +431,7 @@ public partial class CameraSettingsWindow : Window
                     else { JsonUtil.Set(s.Edited, f.Path, JsonUtil.Get(s.Original, f.Path)?.DeepClone()); UpdateDirty(); }
                 };
                 p.Children.Add(box);
-                p.Children.Add(new TextBlock { Text = "leer = unverändert", Style = (Style)FindResource("DimText"), FontSize = 11.5, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+                p.Children.Add(new TextBlock { Text = Lang.T("leer = unverändert"), Style = (Style)FindResource("DimText"), FontSize = 11.5, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
                 return p;
             }
         }
@@ -472,13 +473,13 @@ public partial class CameraSettingsWindow : Window
         {
             foreach (var s in AllSections.Where(s => s.IsDirty).ToList())
             {
-                StatusText.Text = $"Speichere {s.Title} …";
+                StatusText.Text = Lang.F("Speichere {0} …", s.Title);
                 var param = s.BuildSetParam();
                 if (param == null || s.ActiveSetCmd == null) continue;
                 var r = await _session.ExecuteAsync(s.ActiveSetCmd, param);
                 if (!r.Ok)
                 {
-                    errors.Add($"{s.Title}: {r.ErrorDetail ?? "Fehler"}");
+                    errors.Add($"{s.Title}: {r.ErrorDetail ?? Lang.T("Fehler")}");
                     Log.Warn($"Camera {_camera.Host}: {s.ActiveSetCmd} failed: {r.ErrorDetail} ({r.RspCode})");
                     continue;
                 }
@@ -497,11 +498,11 @@ public partial class CameraSettingsWindow : Window
         }
         BuildNavigation();
         StatusText.Text = errors.Count == 0
-            ? $"{ok} Bereich(e) gespeichert."
-            : $"{ok} gespeichert, {errors.Count} fehlgeschlagen: {string.Join("; ", errors)}";
+            ? Lang.F("{0} Bereich(e) gespeichert.", ok)
+            : Lang.F("{0} gespeichert, {1} fehlgeschlagen: {2}", ok, errors.Count, string.Join("; ", errors));
         if (errors.Count > 0)
-            MessageBox.Show(this, "Einige Einstellungen wurden von der Kamera nicht übernommen:\n\n" + string.Join("\n", errors),
-                "Kameraeinstellungen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, Lang.T("Einige Einstellungen wurden von der Kamera nicht übernommen:\n\n") + string.Join("\n", errors),
+                Lang.T("Kameraeinstellungen"), MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     /// <summary>Keeps the OpenReo camera name in sync when the name in the camera was changed.</summary>
@@ -514,7 +515,7 @@ public partial class CameraSettingsWindow : Window
         {
             _onNameChanged?.Invoke(name);
             CameraNameText.Text = name;
-            Title = $"Kameraeinstellungen – {name}";
+            Title = Lang.F("Kameraeinstellungen – {0}", name);
         }
     }
 
@@ -523,29 +524,29 @@ public partial class CameraSettingsWindow : Window
         foreach (var s in AllSections) s.RevertChanges();
         if (_current != null) RenderPage(_current);
         UpdateDirty();
-        StatusText.Text = "Änderungen verworfen.";
+        StatusText.Text = Lang.T("Änderungen verworfen.");
     }
 
     private async void OnReloadClick(object sender, RoutedEventArgs e)
     {
         if (_session == null || _busy) return;
         if (AllSections.Any(s => s.IsDirty) &&
-            MessageBox.Show(this, "Nicht gespeicherte Änderungen verwerfen und neu laden?", "Kameraeinstellungen", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            MessageBox.Show(this, Lang.T("Nicht gespeicherte Änderungen verwerfen und neu laden?"), Lang.T("Kameraeinstellungen"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
         SetBusy(true);
         try
         {
             foreach (var s in AllSections)
             {
-                StatusText.Text = $"Lese {s.Title} …";
+                StatusText.Text = Lang.F("Lese {0} …", s.Title);
                 await LoadSectionAsync(s);
             }
             BuildNavigation();
-            StatusText.Text = "Einstellungen neu geladen.";
+            StatusText.Text = Lang.T("Einstellungen neu geladen.");
         }
         catch (Exception ex)
         {
-            StatusText.Text = "Neu laden fehlgeschlagen: " + ex.Message;
+            StatusText.Text = Lang.T("Neu laden fehlgeschlagen: ") + ex.Message;
         }
         finally
         {
@@ -559,7 +560,7 @@ public partial class CameraSettingsWindow : Window
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (!AllSections.Any(s => s.IsDirty)) return;
-        var r = MessageBox.Show(this, "Es gibt nicht übernommene Änderungen. Trotzdem schließen?", "Kameraeinstellungen",
+        var r = MessageBox.Show(this, Lang.T("Es gibt nicht übernommene Änderungen. Trotzdem schließen?"), Lang.T("Kameraeinstellungen"),
             MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (r != MessageBoxResult.Yes) e.Cancel = true;
     }

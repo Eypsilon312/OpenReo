@@ -6,6 +6,7 @@ using OpenReo.App.Video;
 using OpenReo.App.ViewModels;
 using OpenReo.Core.Models;
 using OpenReo.Video;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App.Controls;
 
@@ -198,17 +199,17 @@ public partial class VideoTile : UserControl
             case StreamStatus.Idle:
             case StreamStatus.Connecting:
                 dot = (Brush)FindResource("WarnBrush");
-                title = "Verbinde …";
+                title = Lang.T("Verbinde …");
                 detail = $"{Camera.Name} · {s.Quality.DisplayName()}";
                 break;
             case StreamStatus.Reconnecting:
                 dot = (Brush)FindResource("ErrorBrush");
                 title = "Offline";
                 var retry = s.NextRetryUtc is { } t ? Math.Max(0, (int)Math.Ceiling((t - DateTime.UtcNow).TotalSeconds)) : 0;
-                detail = (s.LastError ?? "Verbindung verloren") + (retry > 0 ? $"\nNeuer Versuch in {retry} s" : "\nVerbinde erneut …");
+                detail = (s.LastError ?? Lang.T("Verbindung verloren")) + (retry > 0 ? "\n" + Lang.F("Neuer Versuch in {0} s", retry) : "\n" + Lang.T("Verbinde erneut …"));
                 break;
             case StreamStatus.Stopped:
-                title = "Gestoppt";
+                title = Lang.T("Gestoppt");
                 break;
         }
         StatusDot.Fill = dot;
@@ -222,7 +223,7 @@ public partial class VideoTile : UserControl
             InfoText.Text = st.Width > 0
                 ? $"{st.Codec} {st.Width}×{st.Height} · {st.Fps:0} fps · {st.BitrateKbps / 1000:0.0} Mbit/s · {(st.IsHardware ? "GPU" : "CPU")}"
                 : "";
-            InfoText.ToolTip = st.Width > 0 ? $"Decoder: {st.Decoder}\nAnzeige: {st.OutputWidth}×{st.OutputHeight}\nFrames: {st.FramesDecoded}, Fehler: {st.DecodeErrors}" : null;
+            InfoText.ToolTip = st.Width > 0 ? Lang.F("Decoder: {0}\nAnzeige: {1}×{2}\nFrames: {3}, Fehler: {4}", st.Decoder, st.OutputWidth, st.OutputHeight, st.FramesDecoded, st.DecodeErrors) : null;
         }
         ZoomText.Visibility = _zoom > 1.001 ? Visibility.Visible : Visibility.Collapsed;
         ZoomText.Text = $"{_zoom:0.0}×";
@@ -238,8 +239,8 @@ public partial class VideoTile : UserControl
         AudioButton.Background = active ? (Brush)FindResource("AccentBrush") : new SolidColorBrush(Color.FromArgb(0x80, 0, 0, 0));
         AudioButton.Opacity = hasAudio || s.Status != StreamStatus.Playing ? 1.0 : 0.45;
         AudioButton.ToolTip = s.Status == StreamStatus.Playing && !hasAudio
-            ? "Diese Kamera sendet keinen Ton.\nIn den Kameraeinstellungen → Streams „Audio aufzeichnen“ aktivieren."
-            : active ? $"Ton aus ({s.AudioCodec})" : "Ton dieser Kamera wiedergeben";
+            ? Lang.T("Diese Kamera sendet keinen Ton.\nIn den Kameraeinstellungen → Streams „Audio aufzeichnen“ aktivieren.")
+            : active ? Lang.F("Ton aus ({0})", s.AudioCodec) : Lang.T("Ton dieser Kamera wiedergeben");
     }
 
     // ------------------------------------------------------------------ zoom & pan
@@ -382,7 +383,7 @@ public partial class VideoTile : UserControl
         {
             var cam = Camera;
             menu.Items.Add(new MenuItem { Header = cam.Name, IsEnabled = false, FontWeight = FontWeights.SemiBold });
-            var quality = new MenuItem { Header = "Qualität" };
+            var quality = new MenuItem { Header = Lang.T("Qualität") };
             foreach (var q in new[] { StreamQuality.Clear, StreamQuality.Mid, StreamQuality.Low })
             {
                 var item = new MenuItem { Header = q.DisplayName() + q switch { StreamQuality.Clear => "  (Hauptstream)", StreamQuality.Mid => "  (mittel)", _ => "  (Substream)" }, IsChecked = cam.Quality == q };
@@ -390,21 +391,21 @@ public partial class VideoTile : UserControl
                 quality.Items.Add(item);
             }
             menu.Items.Add(quality);
-            menu.Items.Add(Item(_host.AudioCameraId == cam.Id ? "Ton aus" : "Ton wiedergeben", () => _host.ToggleAudio(cam)));
+            menu.Items.Add(Item(_host.AudioCameraId == cam.Id ? Lang.T("Ton aus") : Lang.T("Ton wiedergeben"), () => _host.ToggleAudio(cam)));
             menu.Items.Add(new Separator());
-            menu.Items.Add(Item(_host.IsMaximized ? "Zurück zur Mehrfachansicht" : "Maximieren", () => _host.TileDoubleClicked(this), "Doppelklick"));
-            menu.Items.Add(Item("Zoom zurücksetzen", ResetZoom, "Mittlere Maustaste", _zoom > 1.001));
-            menu.Items.Add(Item("Neu verbinden", () => _lease?.Stream.Reconnect()));
+            menu.Items.Add(Item(_host.IsMaximized ? Lang.T("Zurück zur Mehrfachansicht") : "Maximieren", () => _host.TileDoubleClicked(this), "Doppelklick"));
+            menu.Items.Add(Item(Lang.T("Zoom zurücksetzen"), ResetZoom, "Mittlere Maustaste", _zoom > 1.001));
+            menu.Items.Add(Item(Lang.T("Neu verbinden"), () => _lease?.Stream.Reconnect()));
             menu.Items.Add(new Separator());
-            menu.Items.Add(Item("Kameraeinstellungen …", () => _host.OpenCameraSettings(cam)));
-            menu.Items.Add(Item("Verbindung bearbeiten …", () => _host.EditCamera(cam)));
+            menu.Items.Add(Item(Lang.T("Kameraeinstellungen …"), () => _host.OpenCameraSettings(cam)));
+            menu.Items.Add(Item(Lang.T("Verbindung bearbeiten …"), () => _host.EditCamera(cam)));
             if (!_host.IsMaximized)
-                menu.Items.Add(Item("Aus Ansicht entfernen", () => _host.AssignCamera(this, null)));
+                menu.Items.Add(Item(Lang.T("Aus Ansicht entfernen"), () => _host.AssignCamera(this, null)));
         }
 
         if (!_host.IsMaximized)
         {
-            var assign = new MenuItem { Header = Camera == null ? "Kamera zuweisen" : "Andere Kamera anzeigen" };
+            var assign = new MenuItem { Header = Camera == null ? Lang.T("Kamera zuweisen") : Lang.T("Andere Kamera anzeigen") };
             foreach (var c in _host.AllCameras)
             {
                 var cam = c;
@@ -412,7 +413,7 @@ public partial class VideoTile : UserControl
                 mi.Click += (_, _) => _host.AssignCamera(this, cam.Id);
                 assign.Items.Add(mi);
             }
-            if (assign.Items.Count == 0) assign.Items.Add(new MenuItem { Header = "(keine Kameras angelegt)", IsEnabled = false });
+            if (assign.Items.Count == 0) assign.Items.Add(new MenuItem { Header = Lang.T("(keine Kameras angelegt)"), IsEnabled = false });
             if (Camera != null) menu.Items.Insert(menu.Items.Count - 1, assign);
             else menu.Items.Add(assign);
         }

@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using FFmpeg.AutoGen;
 using OpenReo.Core.Diagnostics;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.Video;
 
@@ -27,7 +28,7 @@ public static unsafe class FFmpegLoader
 
             var dir = LibraryDirectory;
             if (!Directory.Exists(dir) || !Directory.EnumerateFiles(dir, "avcodec-*.dll").Any())
-                throw new DllNotFoundException($"FFmpeg-Bibliotheken nicht gefunden in '{dir}'.");
+                throw new DllNotFoundException(Lang.F("FFmpeg-Bibliotheken nicht gefunden in '{0}'.", dir));
 
             ffmpeg.RootPath = dir;
             DynamicallyLoadedBindings.Initialize();
@@ -76,32 +77,32 @@ internal static unsafe class FFmpegHelper
         const int size = 1024;
         var buffer = stackalloc byte[size];
         ffmpeg.av_strerror(error, buffer, size);
-        return Marshal.PtrToStringAnsi((IntPtr)buffer) ?? $"Fehler {error}";
+        return Marshal.PtrToStringAnsi((IntPtr)buffer) ?? Lang.F("Fehler {0}", error);
     }
 
     /// <summary>Translates common FFmpeg / RTSP errors into user friendly German messages.</summary>
     public static string FriendlyError(int error, bool interruptedByTimeout)
     {
-        if (interruptedByTimeout) return "Zeitüberschreitung – Kamera nicht erreichbar";
+        if (interruptedByTimeout) return Lang.T("Zeitüberschreitung – Kamera nicht erreichbar");
         // Windows CRT errno values used by FFmpeg's network code: AVERROR(x) == -x
         switch (-error)
         {
-            case 138: return "Zeitüberschreitung – Kamera nicht erreichbar";          // ETIMEDOUT
-            case 107: return "Verbindung abgelehnt (RTSP-Port prüfen)";               // ECONNREFUSED
-            case 108: return "Verbindung von der Kamera zurückgesetzt";               // ECONNRESET
-            case 110: return "Kamera nicht erreichbar (Host unreachable)";           // EHOSTUNREACH
-            case 118: return "Netzwerk nicht erreichbar";                            // ENETUNREACH
-            case 106: return "Verbindung abgebrochen";                               // ECONNABORTED
+            case 138: return Lang.T("Zeitüberschreitung – Kamera nicht erreichbar");          // ETIMEDOUT
+            case 107: return Lang.T("Verbindung abgelehnt (RTSP-Port prüfen)");               // ECONNREFUSED
+            case 108: return Lang.T("Verbindung von der Kamera zurückgesetzt");               // ECONNRESET
+            case 110: return Lang.T("Kamera nicht erreichbar (Host unreachable)");           // EHOSTUNREACH
+            case 118: return Lang.T("Netzwerk nicht erreichbar");                            // ENETUNREACH
+            case 106: return Lang.T("Verbindung abgebrochen");                               // ECONNABORTED
         }
         var raw = ErrorString(error);
-        if (raw.StartsWith("Error number", StringComparison.Ordinal)) return $"Verbindungsfehler ({error})";
-        if (raw.Contains("401")) return "Anmeldung fehlgeschlagen (Benutzername/Passwort prüfen)";
-        if (raw.Contains("404")) return "Stream nicht gefunden (RTSP-Pfad prüfen)";
-        if (raw.Contains("503")) return "Kamera ausgelastet (zu viele Verbindungen?)";
-        if (raw.Contains("refused", StringComparison.OrdinalIgnoreCase)) return "Verbindung abgelehnt (RTSP-Port prüfen)";
-        if (raw.Contains("timed out", StringComparison.OrdinalIgnoreCase)) return "Zeitüberschreitung – Kamera nicht erreichbar";
-        if (raw.Contains("unreachable", StringComparison.OrdinalIgnoreCase)) return "Netzwerk nicht erreichbar";
-        if (error == ffmpeg.AVERROR_EOF) return "Stream wurde von der Kamera beendet";
+        if (raw.StartsWith("Error number", StringComparison.Ordinal)) return Lang.F("Verbindungsfehler ({0})", error);
+        if (raw.Contains("401")) return Lang.T("Anmeldung fehlgeschlagen (Benutzername/Passwort prüfen)");
+        if (raw.Contains("404")) return Lang.T("Stream nicht gefunden (RTSP-Pfad prüfen)");
+        if (raw.Contains("503")) return Lang.T("Kamera ausgelastet (zu viele Verbindungen?)");
+        if (raw.Contains("refused", StringComparison.OrdinalIgnoreCase)) return Lang.T("Verbindung abgelehnt (RTSP-Port prüfen)");
+        if (raw.Contains("timed out", StringComparison.OrdinalIgnoreCase)) return Lang.T("Zeitüberschreitung – Kamera nicht erreichbar");
+        if (raw.Contains("unreachable", StringComparison.OrdinalIgnoreCase)) return Lang.T("Netzwerk nicht erreichbar");
+        if (error == ffmpeg.AVERROR_EOF) return Lang.T("Stream wurde von der Kamera beendet");
         return raw;
     }
 

@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using OpenReo.Core.Diagnostics;
 using OpenReo.Core.Models;
 using OpenReo.Video;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App.Dialogs;
 
@@ -11,11 +13,15 @@ public partial class SettingsDialog : Window
 {
     private readonly AppSettings _settings;
 
+    /// <summary>True when the chosen language differs from the running one (restart required).</summary>
+    public bool LanguageChanged { get; private set; }
+
     public SettingsDialog(AppSettings settings)
     {
         InitializeComponent();
         _settings = settings;
 
+        LanguageBox.SelectedIndex = settings.Language switch { Lang.German => 1, Lang.English => 2, _ => 0 };
         HwBox.SelectedIndex = (int)settings.HardwareAcceleration;
         TransportBox.SelectedIndex = (int)settings.Transport;
         LowLatencyBox.IsChecked = settings.LowLatency;
@@ -28,23 +34,26 @@ public partial class SettingsDialog : Window
         FullscreenBox.IsChecked = settings.StartInFullscreen;
         RememberCredentialsBox.IsChecked = settings.RememberCredentials;
         RememberedText.Text = settings.RememberCredentials && !string.IsNullOrEmpty(settings.DefaultUsername)
-            ? $"Gemerkt: Benutzer „{settings.DefaultUsername}“ (wird beim Hinzufügen vorausgefüllt). Abwählen löscht die gemerkten Daten."
-            : "Benutzer und Passwort der zuletzt hinzugefügten Kamera werden bei weiteren Kameras vorausgefüllt.";
+            ? Lang.F("Gemerkt: Benutzer „{0}“ (wird beim Hinzufügen vorausgefüllt). Abwählen löscht die gemerkten Daten.", settings.DefaultUsername)
+            : Lang.T("Benutzer und Passwort der zuletzt hinzugefügten Kamera werden bei weiteren Kameras vorausgefüllt.");
 
         var available = HardwareAcceleration.Shared.ProbeAvailable();
         HwInfoText.Text = available.Count > 0
-            ? $"Verfügbare GPU-Decoder: {string.Join(", ", available)}. „Automatisch“ verwendet CUDA/NVDEC (NVIDIA, inkl. GPU-Skalierung), sonst D3D11VA."
-            : "Keine GPU-Decodierung verfügbar – es wird die CPU verwendet.";
+            ? Lang.F("Verfügbare GPU-Decoder: {0}. „Automatisch“ verwendet CUDA/NVDEC (NVIDIA, inkl. GPU-Skalierung), sonst D3D11VA.", string.Join(", ", available))
+            : Lang.T("Keine GPU-Decodierung verfügbar – es wird die CPU verwendet.");
         InfoText.Text = $"OpenReo {typeof(SettingsDialog).Assembly.GetName().Version?.ToString(3)} · FFmpeg {FFmpegLoader.Version}\n" +
-                        $"Konfiguration: {AppPaths.ConfigFile}";
+                        Lang.F("Konfiguration: {0}", AppPaths.ConfigFile);
     }
 
     private void OnOkClick(object sender, RoutedEventArgs e)
     {
-        if (!int.TryParse(TimeoutBox.Text, out var timeout) || timeout is < 3 or > 60) { ErrorText.Text = "Timeout: 3–60 s"; return; }
-        if (!int.TryParse(ReconnectBox.Text, out var reconnect) || reconnect is < 2 or > 300) { ErrorText.Text = "Wiederholintervall: 2–300 s"; return; }
-        if (!int.TryParse(ReleaseBox.Text, out var release) || release is < 0 or > 600) { ErrorText.Text = "Offen halten: 0–600 s"; return; }
+        if (!int.TryParse(TimeoutBox.Text, out var timeout) || timeout is < 3 or > 60) { ErrorText.Text = Lang.T("Timeout: 3–60 s"); return; }
+        if (!int.TryParse(ReconnectBox.Text, out var reconnect) || reconnect is < 2 or > 300) { ErrorText.Text = Lang.T("Wiederholintervall: 2–300 s"); return; }
+        if (!int.TryParse(ReleaseBox.Text, out var release) || release is < 0 or > 600) { ErrorText.Text = Lang.T("Offen halten: 0–600 s"); return; }
 
+        var language = (LanguageBox.SelectedItem as ComboBoxItem)?.Tag as string ?? Lang.Auto;
+        LanguageChanged = Lang.Resolve(language) != Lang.Current;
+        _settings.Language = language;
         _settings.HardwareAcceleration = (HardwareAccelerationMode)Math.Max(0, HwBox.SelectedIndex);
         _settings.Transport = (RtspTransport)Math.Max(0, TransportBox.SelectedIndex);
         _settings.LowLatency = LowLatencyBox.IsChecked == true;

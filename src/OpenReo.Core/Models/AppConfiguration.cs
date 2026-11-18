@@ -3,6 +3,9 @@ namespace OpenReo.Core.Models;
 /// <summary>General application settings.</summary>
 public sealed class AppSettings
 {
+    /// <summary>UI language: "auto" (Windows display language), "de" or "en".</summary>
+    public string Language { get; set; } = "auto";
+
     public HardwareAccelerationMode HardwareAcceleration { get; set; } = HardwareAccelerationMode.Auto;
     public RtspTransport Transport { get; set; } = RtspTransport.Tcp;
 

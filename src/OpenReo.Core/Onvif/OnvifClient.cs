@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Security;
 using System.Text;
 using System.Xml.Linq;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.Core.Onvif;
 
@@ -141,7 +142,7 @@ public sealed class OnvifClient : IDisposable
         var doc = await SendAsync(url, $"{NsMedia}/GetStreamUri", body, true, ct);
         var uri = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "Uri")?.Value?.Trim();
         if (string.IsNullOrEmpty(uri) || !Uri.TryCreate(uri, UriKind.Absolute, out var u))
-            throw new OnvifException("Kamera lieferte keine Stream-URI.");
+            throw new OnvifException(Lang.T("Kamera lieferte keine Stream-URI."));
         return u;
     }
 
@@ -164,11 +165,11 @@ public sealed class OnvifClient : IDisposable
         }
         catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
         {
-            throw new OnvifException($"ONVIF-Zeitüberschreitung ({_host}).", false, ex);
+            throw new OnvifException(Lang.F("ONVIF-Zeitüberschreitung ({0}).", _host), false, ex);
         }
         catch (HttpRequestException ex)
         {
-            throw new OnvifException($"ONVIF nicht erreichbar ({_host}): {ex.Message}", false, ex);
+            throw new OnvifException(Lang.F("ONVIF nicht erreichbar ({0}): {1}", _host, ex.Message), false, ex);
         }
 
         using (resp)
@@ -182,15 +183,15 @@ public sealed class OnvifClient : IDisposable
             {
                 var reason = fault?.Descendants().FirstOrDefault(e => e.Name.LocalName == "Text")?.Value
                              ?? fault?.Descendants().FirstOrDefault(e => e.Name.LocalName == "faultstring")?.Value
-                             ?? resp.ReasonPhrase ?? "Unbekannter Fehler";
+                             ?? resp.ReasonPhrase ?? Lang.T("Unbekannter Fehler");
                 var subcode = string.Join(" ", fault?.Descendants().Where(e => e.Name.LocalName == "Value").Select(v => v.Value) ?? Array.Empty<string>());
                 bool auth = resp.StatusCode == HttpStatusCode.Unauthorized
                             || subcode.Contains("NotAuthorized", StringComparison.OrdinalIgnoreCase)
                             || reason.Contains("auth", StringComparison.OrdinalIgnoreCase)
                             || reason.Contains("password", StringComparison.OrdinalIgnoreCase);
-                throw new OnvifException(auth ? "ONVIF-Anmeldung fehlgeschlagen (Benutzername/Passwort prüfen)." : $"ONVIF-Fehler: {reason}", auth);
+                throw new OnvifException(auth ? Lang.T("ONVIF-Anmeldung fehlgeschlagen (Benutzername/Passwort prüfen).") : Lang.F("ONVIF-Fehler: {0}", reason), auth);
             }
-            return doc ?? throw new OnvifException("Ungültige ONVIF-Antwort.");
+            return doc ?? throw new OnvifException(Lang.T("Ungültige ONVIF-Antwort."));
         }
     }
 

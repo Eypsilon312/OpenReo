@@ -1,8 +1,9 @@
 <Window x:Class="OpenReo.App.CameraSettings.CameraSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:OpenReo.App.Infrastructure"
         Style="{StaticResource DialogWindow}" WindowStartupLocation="CenterOwner" ShowInTaskbar="True"
-        Title="Kameraeinstellungen" Width="980" Height="720" MinWidth="760" MinHeight="480">
+        Title="{l:T 'Kameraeinstellungen'}" Width="980" Height="720" MinWidth="760" MinHeight="480">
     <Grid Background="{StaticResource PanelBrush}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="210" />
@@ -29,17 +30,17 @@
             <StackPanel x:Name="ContentPanel" />
         </ScrollViewer>
         <StackPanel x:Name="LoadingPanel" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center">
-            <TextBlock x:Name="LoadingText" Text="Verbinde mit der Kamera …" HorizontalAlignment="Center" FontSize="14" />
+            <TextBlock x:Name="LoadingText" Text="{l:T 'Verbinde mit der Kamera …'}" HorizontalAlignment="Center" FontSize="14" />
             <TextBlock x:Name="LoadingDetail" Style="{StaticResource DimText}" HorizontalAlignment="Center" Margin="0,6,0,0" TextWrapping="Wrap" MaxWidth="460" TextAlignment="Center" />
         </StackPanel>
 
         <!-- Bottom bar -->
         <Border Grid.Row="1" Grid.ColumnSpan="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,10">
             <DockPanel LastChildFill="True">
-                <Button DockPanel.Dock="Right" x:Name="ApplyButton" Style="{StaticResource AccentButton}" Content="Übernehmen" MinWidth="110" Margin="8,0,0,0" Click="OnApplyClick" IsEnabled="False" />
-                <Button DockPanel.Dock="Right" x:Name="RevertButton" Content="Verwerfen" Margin="8,0,0,0" Click="OnRevertClick" IsEnabled="False" />
-                <Button DockPanel.Dock="Right" x:Name="ReloadButton" Content="Neu laden" Margin="8,0,0,0" Click="OnReloadClick" IsEnabled="False" />
-                <Button DockPanel.Dock="Right" Content="Schließen" IsCancel="True" MinWidth="90" Click="OnCloseClick" />
+                <Button DockPanel.Dock="Right" x:Name="ApplyButton" Style="{StaticResource AccentButton}" Content="{l:T 'Übernehmen'}" MinWidth="110" Margin="8,0,0,0" Click="OnApplyClick" IsEnabled="False" />
+                <Button DockPanel.Dock="Right" x:Name="RevertButton" Content="{l:T 'Verwerfen'}" Margin="8,0,0,0" Click="OnRevertClick" IsEnabled="False" />
+                <Button DockPanel.Dock="Right" x:Name="ReloadButton" Content="{l:T 'Neu laden'}" Margin="8,0,0,0" Click="OnReloadClick" IsEnabled="False" />
+                <Button DockPanel.Dock="Right" Content="{l:T 'Schließen'}" IsCancel="True" MinWidth="90" Click="OnCloseClick" />
                 <TextBlock x:Name="StatusText" Style="{StaticResource DimText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
             </DockPanel>
         </Border>

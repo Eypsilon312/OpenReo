@@ -13,6 +13,7 @@ using OpenReo.Core.Cameras;
 using OpenReo.Core.Layouts;
 using OpenReo.Core.Models;
 using OpenReo.Video;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App;
 
@@ -132,7 +133,7 @@ public partial class MainWindow : Window, IViewerActions
             foreach (var l in _svc.Layouts.Custom) menu.Items.Add(LayoutMenuItem(l));
         }
         menu.Items.Add(new Separator());
-        var editor = new MenuItem { Header = "Eigene Layouts bearbeiten …" };
+        var editor = new MenuItem { Header = Lang.T("Eigene Layouts bearbeiten …") };
         editor.Click += (_, _) => OpenLayoutEditor();
         menu.Items.Add(editor);
         menu.IsOpen = true;
@@ -165,21 +166,21 @@ public partial class MainWindow : Window, IViewerActions
             menu.Items.Add(mi);
         }
         if (_svc.Layouts.SavedViews.Count == 0)
-            menu.Items.Add(new MenuItem { Header = "(keine gespeicherten Ansichten)", IsEnabled = false });
+            menu.Items.Add(new MenuItem { Header = Lang.T("(keine gespeicherten Ansichten)"), IsEnabled = false });
         menu.Items.Add(new Separator());
-        var save = new MenuItem { Header = "Aktuelle Ansicht speichern …" };
+        var save = new MenuItem { Header = Lang.T("Aktuelle Ansicht speichern …") };
         save.Click += (_, _) => SaveCurrentView();
         menu.Items.Add(save);
         if (_svc.Layouts.SavedViews.Count > 0)
         {
-            var del = new MenuItem { Header = "Ansicht löschen" };
+            var del = new MenuItem { Header = Lang.T("Ansicht löschen") };
             foreach (var v in _svc.Layouts.SavedViews.ToList())
             {
                 var view = v;
                 var mi = new MenuItem { Header = view.Name };
                 mi.Click += (_, _) =>
                 {
-                    if (MessageBox.Show(this, $"Ansicht „{view.Name}“ löschen?", "OpenReo", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    if (MessageBox.Show(this, Lang.F("Ansicht „{0}“ löschen?", view.Name), "OpenReo", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                     {
                         _svc.Layouts.DeleteView(view.Id);
                         _svc.RequestSave();
@@ -194,7 +195,7 @@ public partial class MainWindow : Window, IViewerActions
 
     private void SaveCurrentView()
     {
-        var name = InputDialog.Ask(this, "Ansicht speichern", "Name der Ansicht:", $"Ansicht {_svc.Layouts.SavedViews.Count + 1}");
+        var name = InputDialog.Ask(this, Lang.T("Ansicht speichern"), Lang.T("Name der Ansicht:"), Lang.F("Ansicht {0}", _svc.Layouts.SavedViews.Count + 1));
         if (string.IsNullOrWhiteSpace(name)) return;
         _svc.Layouts.SaveView(name.Trim(), MultiView.Layout, MultiView.Slots);
         _svc.RequestSave();
@@ -241,7 +242,7 @@ public partial class MainWindow : Window, IViewerActions
 
     private void UpdateCameraPanel()
     {
-        CameraCountText.Text = _cameras.Count == 1 ? "1 Kamera" : $"{_cameras.Count} Kameras";
+        CameraCountText.Text = _cameras.Count == 1 ? Lang.T("1 Kamera") : Lang.F("{0} Kameras", _cameras.Count);
         NoCamerasPanel.Visibility = _cameras.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         CameraList.Visibility = _cameras.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -305,7 +306,7 @@ public partial class MainWindow : Window, IViewerActions
     {
         if (!_svc.Audio.Player.IsAvailable)
         {
-            MessageBox.Show(this, "Es wurde kein Audio-Ausgabegerät gefunden.", "Ton", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, Lang.T("Es wurde kein Audio-Ausgabegerät gefunden."), Lang.T("Ton"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         _svc.Audio.Toggle(camera.Id);
@@ -336,7 +337,7 @@ public partial class MainWindow : Window, IViewerActions
     private void UpdateMuteIcon()
     {
         MuteIcon.Text = _svc.Audio.Player.Muted ? "\uE74F" : "\uE767";
-        MuteButton.ToolTip = _svc.Audio.Player.Muted ? "Ton einschalten" : "Ton stumm schalten";
+        MuteButton.ToolTip = _svc.Audio.Player.Muted ? Lang.T("Ton einschalten") : Lang.T("Ton stumm schalten");
     }
 
     private readonly Dictionary<Guid, CameraSettings.CameraSettingsWindow> _settingsWindows = new();
@@ -375,7 +376,7 @@ public partial class MainWindow : Window, IViewerActions
         int ok = 0, failed = 0;
         foreach (var vm in cameras)
         {
-            StatusLeft.Text = $"Lese Namen von {vm.Host} …";
+            StatusLeft.Text = Lang.F("Lese Namen von {0} …", vm.Host);
             try
             {
                 var c = vm.Config;
@@ -391,12 +392,12 @@ public partial class MainWindow : Window, IViewerActions
             }
             catch { failed++; }
         }
-        StatusLeft.Text = $"Kameranamen übernommen: {ok}" + (failed > 0 ? $", nicht lesbar: {failed} (HTTP-Port / Zugangsdaten prüfen)" : "");
+        StatusLeft.Text = Lang.F("Kameranamen übernommen: {0}", ok) + (failed > 0 ? Lang.F(", nicht lesbar: {0} (HTTP-Port / Zugangsdaten prüfen)", failed) : "");
     }
 
     private void RemoveCamera(CameraViewModel camera)
     {
-        if (MessageBox.Show(this, $"Kamera „{camera.Name}“ wirklich entfernen?", "Kamera entfernen",
+        if (MessageBox.Show(this, Lang.F("Kamera „{0}“ wirklich entfernen?", camera.Name), Lang.T("Kamera entfernen"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         _svc.Cameras.Remove(camera.Id);
     }
@@ -453,15 +454,15 @@ public partial class MainWindow : Window, IViewerActions
         menu.Items.Clear();
         if (vm == null)
         {
-            menu.Items.Add(MenuItem("Kamera hinzufügen …", () => OnAddCameraClick(this, new RoutedEventArgs())));
-            menu.Items.Add(MenuItem("Kameras suchen (ONVIF) …", () => OnDiscoverClick(this, new RoutedEventArgs())));
+            menu.Items.Add(MenuItem(Lang.T("Kamera hinzufügen …"), () => OnAddCameraClick(this, new RoutedEventArgs())));
+            menu.Items.Add(MenuItem(Lang.T("Kameras suchen (ONVIF) …"), () => OnDiscoverClick(this, new RoutedEventArgs())));
             menu.Items.Add(new Separator());
-            menu.Items.Add(MenuItem("Alle Namen von den Kameras übernehmen", () => FetchNamesFromCameras(_cameras.ToList()), _cameras.Count > 0));
+            menu.Items.Add(MenuItem(Lang.T("Alle Namen von den Kameras übernehmen"), () => FetchNamesFromCameras(_cameras.ToList()), _cameras.Count > 0));
             return;
         }
         CameraList.SelectedItem = vm;
-        menu.Items.Add(MenuItem("In Ansicht anzeigen", () => MultiView.ShowCamera(vm.Id)));
-        var quality = new MenuItem { Header = "Qualität" };
+        menu.Items.Add(MenuItem(Lang.T("In Ansicht anzeigen"), () => MultiView.ShowCamera(vm.Id)));
+        var quality = new MenuItem { Header = Lang.T("Qualität") };
         foreach (var q in new[] { StreamQuality.Clear, StreamQuality.Mid, StreamQuality.Low })
         {
             var mi = new MenuItem { Header = q.DisplayName(), IsChecked = vm.Quality == q };
@@ -469,16 +470,16 @@ public partial class MainWindow : Window, IViewerActions
             quality.Items.Add(mi);
         }
         menu.Items.Add(quality);
-        menu.Items.Add(MenuItem("Neu verbinden", () =>
+        menu.Items.Add(MenuItem(Lang.T("Neu verbinden"), () =>
         {
             foreach (var s in _svc.Streams.Streams.Where(s => s.CameraId == vm.Id)) s.Reconnect();
         }));
         menu.Items.Add(new Separator());
-        menu.Items.Add(MenuItem("Kameraeinstellungen …", () => OpenCameraSettings(vm)));
-        menu.Items.Add(MenuItem("Weboberfläche öffnen", () => OpenWebUi(vm)));
-        menu.Items.Add(MenuItem("Verbindung bearbeiten …", () => EditCamera(vm)));
-        menu.Items.Add(MenuItem("Namen von Kamera übernehmen", () => FetchNamesFromCameras(new[] { vm })));
-        menu.Items.Add(MenuItem("Alle Namen von den Kameras übernehmen", () => FetchNamesFromCameras(_cameras.ToList())));
+        menu.Items.Add(MenuItem(Lang.T("Kameraeinstellungen …"), () => OpenCameraSettings(vm)));
+        menu.Items.Add(MenuItem(Lang.T("Weboberfläche öffnen"), () => OpenWebUi(vm)));
+        menu.Items.Add(MenuItem(Lang.T("Verbindung bearbeiten …"), () => EditCamera(vm)));
+        menu.Items.Add(MenuItem(Lang.T("Namen von Kamera übernehmen"), () => FetchNamesFromCameras(new[] { vm })));
+        menu.Items.Add(MenuItem(Lang.T("Alle Namen von den Kameras übernehmen"), () => FetchNamesFromCameras(_cameras.ToList())));
         int idx = _cameras.IndexOf(vm);
         menu.Items.Add(MenuItem("Nach oben", () => MoveCamera(vm, -1), idx > 0));
         menu.Items.Add(MenuItem("Nach unten", () => MoveCamera(vm, +1), idx < _cameras.Count - 1));
@@ -513,6 +514,27 @@ public partial class MainWindow : Window, IViewerActions
         {
             _svc.ApplySettings();
             MultiView.RefreshOverlays();
+            if (dlg.LanguageChanged &&
+                MessageBox.Show(this, Lang.T("Die Sprache wird nach einem Neustart übernommen. OpenReo jetzt neu starten?"), "OpenReo",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                RestartApplication();
+        }
+    }
+
+    /// <summary>Starts a new instance (which waits for this one to exit) and closes this one.</summary>
+    private void RestartApplication()
+    {
+        _svc.SaveNow();
+        var args = Environment.GetCommandLineArgs().Skip(1).Where(a => !a.Equals("--restarted", StringComparison.OrdinalIgnoreCase))
+            .Select(a => a.Contains(' ') ? $"\"{a}\"" : a).Append("--restarted");
+        try
+        {
+            Process.Start(new ProcessStartInfo(Environment.ProcessPath!, string.Join(' ', args)) { UseShellExecute = false });
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            Core.Diagnostics.Log.Error("Restart failed", ex);
         }
     }
 
@@ -637,9 +659,9 @@ public partial class MainWindow : Window, IViewerActions
         int gpu = streams.Count(s => s.Status == StreamStatus.Playing && s.Statistics.IsHardware);
         int cpu = playing - gpu;
         double mbit = streams.Sum(s => s.Statistics.BitrateKbps) / 1000.0;
-        StatusLeft.Text = $"Streams: {playing} aktiv" + (offline > 0 ? $", {offline} offline" : "") +
-                          $"   ·   Decoder: {gpu} GPU / {cpu} CPU   ·   {mbit:0.0} Mbit/s   ·   Layout: {MultiView.Layout.Name}" +
-                          (_svc.Audio.CameraId is Guid aid && FindVm(aid) is { } avm ? $"   ·   Ton: {avm.Name}{(_svc.Audio.Player.Muted ? " (stumm)" : "")}" : "");
+        StatusLeft.Text = Lang.F("Streams: {0} aktiv", playing) + (offline > 0 ? Lang.F(", {0} offline", offline) : "") +
+                          Lang.F("   ·   Decoder: {0} GPU / {1} CPU   ·   {2:0.0} Mbit/s   ·   Layout: {3}", gpu, cpu, mbit, MultiView.Layout.Name) +
+                          (_svc.Audio.CameraId is Guid aid && FindVm(aid) is { } avm ? Lang.F("   ·   Ton: {0}", avm.Name) + (_svc.Audio.Player.Muted ? Lang.T(" (stumm)") : "") : "");
 
         _process.Refresh();
         var now = DateTime.UtcNow;

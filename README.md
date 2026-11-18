@@ -8,7 +8,8 @@ OpenReo is a standalone Windows client (C# / .NET 8 / WPF) for live monitoring o
 > or sponsored by Reolink. "Reolink" is a trademark of its respective owner and is used here only to
 > describe compatibility.
 
-> The user interface is currently in **German**.
+> The user interface is available in **English and German**. The language follows the Windows display
+> language automatically (German for German Windows, English otherwise) and can be changed in the settings.
 
 ## Features
 
@@ -43,6 +44,8 @@ OpenReo is a standalone Windows client (C# / .NET 8 / WPF) for live monitoring o
   Only settings reported by the respective camera are shown (including value ranges); old and new
   firmware (V20 commands, schedule modes timer/motion) are detected. Only changed values are sent.
   Intentionally not included (use the web UI/app): firmware update, users, network/Wi-Fi, AI zones, formatting.
+- **Languages**: English and German, chosen automatically from the Windows display language or set manually
+  (settings → language; applied after a restart). All texts are checked by `tools\check-translations.ps1`.
 - **Persistence**: cameras (passwords encrypted with Windows DPAPI), quality per camera and global,
   last layout incl. camera assignment, custom layouts, views, window and application settings.
 
@@ -125,6 +128,7 @@ tools/
   OpenReo.StreamBench       – load test: N real streams through the same video layer, measures fps/CPU/RAM
   OpenReo.UiTest            – automated UI test of the camera settings against a simulated Reolink API
   get-ffmpeg.ps1            – downloads the FFmpeg libraries
+  check-translations.ps1    – verifies that every UI text has an English translation
 installer/                  – Inno Setup script
 ```
 
@@ -161,7 +165,8 @@ files played in real time) and an unreachable RTSP camera:
 Camera settings: `tools\OpenReo.UiTest` opens the settings window against a simulated Reolink API (old
 and V20 firmware formats including responses captured from a real camera, unsupported commands, wrong
 password) and verifies among other things that only changed fields are sent; it also checks the audio chain (decode,
-playback, latency, switching off) with a test video containing an AAC track (54 checks, all passing).
+playback, latency, switching off) with a test video containing an AAC track, and renders all settings pages in
+English to make sure no German text is left (57 checks, all passing).
 
 **Not tested yet** (no hardware available in the development environment): real Reolink cameras
 (including writing camera settings), ONVIF discovery and profile queries against real devices, connection
@@ -182,7 +187,6 @@ tools\OpenReo.StreamBench\bin\Release\net8.0-windows\OpenReo.StreamBench.exe `
   decoder surfaces. With D3D11VA, scaling is therefore done on the CPU (more PCIe transfer); with
   25 × 4K about 21 instead of 25 fps were measured. On NVIDIA, CUDA is preferred for that reason.
 - Recording and playback inside OpenReo are not part of this version.
-- User interface only in German so far.
 
 ## License
 

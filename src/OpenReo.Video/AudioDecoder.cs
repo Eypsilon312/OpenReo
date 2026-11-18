@@ -1,4 +1,5 @@
 using FFmpeg.AutoGen;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.Video;
 
@@ -36,7 +37,7 @@ internal sealed unsafe class AudioDecoder : IDisposable
     public AudioDecoder(AVCodecParameters* par)
     {
         var codec = ffmpeg.avcodec_find_decoder(par->codec_id);
-        if (codec == null) throw new FFmpegException($"Kein Audio-Decoder für {ffmpeg.avcodec_get_name(par->codec_id)}.");
+        if (codec == null) throw new FFmpegException(Lang.F("Kein Audio-Decoder für {0}.", ffmpeg.avcodec_get_name(par->codec_id)));
         CodecName = ffmpeg.avcodec_get_name(par->codec_id)?.ToUpperInvariant() ?? "?";
         _ctx = ffmpeg.avcodec_alloc_context3(codec);
         FFmpegHelper.ThrowIfError(ffmpeg.avcodec_parameters_to_context(_ctx, par), "Audio-Parameter");

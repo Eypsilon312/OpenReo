@@ -61,6 +61,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        OpenReo.Core.Localization.Lang.Initialize("de"); // the checks below use the German texts
         string? shots = args.Length > 0 ? args[0] : null;
         if (shots != null) Directory.CreateDirectory(shots);
 
@@ -242,6 +243,34 @@ internal static class Program
             lease.Release(true);
         }
         else Console.WriteLine("SKIP  Ton-Test (keine Testdatei mit Audiospur angegeben)");
+
+        // ---------------------------------------------------------------- English UI
+        OpenReo.Core.Localization.Lang.Initialize("en");
+        using (var enCam = new FakeReolinkCamera(legacy: true))
+        {
+            var cfg = new CameraConfig { Name = "Gate", Host = "localhost", HttpPort = enCam.Port, Username = "admin", Password = "pw" };
+            var w = new CameraSettingsWindow(cfg);
+            w.Show();
+            var list = (ListBox)w.FindName("PageList");
+            Check(WaitUntil(() => list.Items.Count > 0), "English: settings loaded");
+            var german = new List<string>();
+            int i = 1;
+            foreach (ListBoxItem item in list.Items)
+            {
+                list.SelectedItem = item;
+                DoEvents();
+                var texts = FindAll<TextBlock>((FrameworkElement)w.Content).Select(t => t.Text)
+                    .Concat(FindAll<ContentControl>((FrameworkElement)w.Content).Select(c => c.Content as string))
+                    .Where(t => !string.IsNullOrEmpty(t)).ToList();
+                german.AddRange(texts!.Where(t => t!.IndexOfAny(new[] { 'ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', 'ß', '„' }) >= 0)!);
+                Screenshot(w, shots, $"en-{i++:00}");
+            }
+            Check(german.Count == 0, "English: no German text visible" + (german.Count > 0 ? ": " + string.Join(" | ", german.Distinct().Take(8)) : ""));
+            var enTitles = list.Items.OfType<ListBoxItem>().Select(x => ((SettingsPage)x.Tag).Title).ToList();
+            Check(enTitles.Contains("General") && enTitles.Contains("Recording") && enTitles.Contains("E-mail"), "English: page titles translated (" + string.Join(", ", enTitles) + ")");
+            w.Close();
+        }
+        OpenReo.Core.Localization.Lang.Initialize("de");
 
         Console.WriteLine(_failures == 0 ? "\nALLE TESTS BESTANDEN" : $"\n{_failures} TEST(S) FEHLGESCHLAGEN");
         app.Shutdown();

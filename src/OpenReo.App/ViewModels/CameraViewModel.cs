@@ -3,6 +3,7 @@ using System.Windows.Media;
 using OpenReo.App.Infrastructure;
 using OpenReo.Core.Models;
 using OpenReo.Video;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App.ViewModels;
 
@@ -18,7 +19,7 @@ public enum CameraUiState
 public sealed class CameraViewModel : ObservableObject
 {
     private CameraUiState _state = CameraUiState.Inactive;
-    private string _statusText = "Nicht in Ansicht";
+    private string _statusText = Lang.T("Nicht in Ansicht");
     private bool _isInView;
 
     public CameraConfig Config { get; }
@@ -64,7 +65,7 @@ public sealed class CameraViewModel : ObservableObject
         if (stream == null)
         {
             State = CameraUiState.Inactive;
-            StatusText = "Nicht in Ansicht";
+            StatusText = Lang.T("Nicht in Ansicht");
             return;
         }
         switch (stream.Status)
@@ -72,20 +73,20 @@ public sealed class CameraViewModel : ObservableObject
             case StreamStatus.Playing:
                 State = CameraUiState.Online;
                 var st = stream.Statistics;
-                StatusText = st.Width > 0 ? $"Online · {QualityText} {st.Width}×{st.Height}" : "Online";
+                StatusText = st.Width > 0 ? Lang.F("Online · {0} {1}×{2}", QualityText, st.Width, st.Height) : "Online";
                 break;
             case StreamStatus.Connecting:
             case StreamStatus.Idle:
                 State = CameraUiState.Connecting;
-                StatusText = "Verbinde …";
+                StatusText = Lang.T("Verbinde …");
                 break;
             case StreamStatus.Reconnecting:
                 State = CameraUiState.Offline;
-                StatusText = "Offline – " + (stream.LastError ?? "Verbindung verloren");
+                StatusText = Lang.T("Offline – ") + (stream.LastError ?? Lang.T("Verbindung verloren"));
                 break;
             default:
                 State = CameraUiState.Inactive;
-                StatusText = "Gestoppt";
+                StatusText = Lang.T("Gestoppt");
                 break;
         }
     }

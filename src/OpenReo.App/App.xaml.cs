@@ -6,6 +6,7 @@ using OpenReo.Core.Configuration;
 using OpenReo.Core.Diagnostics;
 using OpenReo.Core.Models;
 using OpenReo.Video;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App;
 
@@ -28,10 +29,17 @@ public partial class App : Application
         if (configPath != null)
             mutexName += "." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
                 System.Text.Encoding.UTF8.GetBytes(configPath.ToLowerInvariant())))[..16];
+        Lang.Initialize(Lang.Auto); // final language is applied after the configuration was loaded
         _singleInstance = new Mutex(true, mutexName, out bool isFirst);
+        // After a restart (e.g. language change) wait until the previous instance has exited.
+        if (!isFirst && e.Args.Contains("--restarted", StringComparer.OrdinalIgnoreCase))
+        {
+            try { isFirst = _singleInstance.WaitOne(TimeSpan.FromSeconds(15)); }
+            catch (AbandonedMutexException) { isFirst = true; }
+        }
         if (!isFirst)
         {
-            MessageBox.Show("OpenReo läuft bereits.", "OpenReo", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Lang.T("OpenReo läuft bereits."), "OpenReo", MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown(0);
             return;
         }
@@ -51,7 +59,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Error("FFmpeg could not be loaded", ex);
-            MessageBox.Show($"Die Video-Bibliotheken (FFmpeg) konnten nicht geladen werden:\n\n{ex.Message}\n\nBitte installieren Sie OpenReo neu.",
+            MessageBox.Show(Lang.F("Die Video-Bibliotheken (FFmpeg) konnten nicht geladen werden:\n\n{0}\n\nBitte installieren Sie OpenReo neu.", ex.Message),
                 "OpenReo", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
             return;
@@ -59,6 +67,7 @@ public partial class App : Application
 
         var config = new ConfigurationManager(configPath);
         var cfg = config.Load();
+        Lang.Initialize(cfg.Settings.Language);
         if (!cfg.Settings.RestoreCameraQuality)
             foreach (var cam in cfg.Cameras) cam.Quality = StreamQuality.Mid;
 
@@ -112,7 +121,7 @@ public partial class App : Application
     {
         Log.Error("Unhandled UI exception", e.Exception);
         e.Handled = true; // keep the viewer running – a single failure must not close all cameras
-        MessageBox.Show($"Ein unerwarteter Fehler ist aufgetreten:\n\n{e.Exception.Message}\n\nDetails stehen im Protokoll ({AppPaths.LogDirectory}).",
+        MessageBox.Show(Lang.F("Ein unerwarteter Fehler ist aufgetreten:\n\n{0}\n\nDetails stehen im Protokoll ({1}).", e.Exception.Message, AppPaths.LogDirectory),
             "OpenReo", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 

@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using OpenReo.Core.Layouts;
 using OpenReo.Core.Models;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App.Dialogs;
 
@@ -32,7 +33,7 @@ public partial class LayoutEditorDialog : Window
 
     private LayoutDefinition NewLayout()
     {
-        var l = LayoutDefinition.Grid(Guid.NewGuid().ToString("N"), $"Eigenes Layout {_layouts.Custom.Count + 1}", 3, 4);
+        var l = LayoutDefinition.Grid(Guid.NewGuid().ToString("N"), Lang.F("Eigenes Layout {0}", _layouts.Custom.Count + 1), 3, 4);
         return l;
     }
 
@@ -72,7 +73,7 @@ public partial class LayoutEditorDialog : Window
     private void OnDeleteClick(object sender, RoutedEventArgs e)
     {
         if (LayoutList.SelectedItem is not LayoutDefinition l) return;
-        if (MessageBox.Show(this, $"Layout „{l.Name}“ löschen?", "OpenReo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show(this, Lang.F("Layout „{0}“ löschen?", l.Name), "OpenReo", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         _layouts.DeleteCustomLayout(l.Id);
         RefreshList();
         LoadIntoEditor(NewLayout());
@@ -152,7 +153,7 @@ public partial class LayoutEditorDialog : Window
             Grid.SetColumnSpan(sel, c1 - c0 + 1);
             SelectionGrid.Children.Add(sel);
         }
-        InfoText.Text = $"{_current.TileCount} Kacheln";
+        InfoText.Text = Lang.F("{0} Kacheln", _current.TileCount);
     }
 
     private static (int r0, int c0, int r1, int c1) SelectionRect((int r, int c) a, (int r, int c) b) =>
@@ -241,12 +242,12 @@ public partial class LayoutEditorDialog : Window
     private LayoutDefinition? Save()
     {
         var name = NameBox.Text.Trim();
-        if (name.Length == 0) { InfoText.Text = "Bitte einen Namen eingeben."; return null; }
+        if (name.Length == 0) { InfoText.Text = Lang.T("Bitte einen Namen eingeben."); return null; }
         _current.Name = name;
         var saved = _current.Clone();
         _layouts.SaveCustomLayout(saved);
         RefreshList(saved.Id);
-        InfoText.Text = $"„{name}“ gespeichert.";
+        InfoText.Text = Lang.F("„{0}“ gespeichert.", name);
         return saved;
     }
 

@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using OpenReo.Core.Cameras;
 using OpenReo.Core.Models;
 using OpenReo.Video;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.App.Dialogs;
 
@@ -26,7 +27,7 @@ public partial class CameraDialog : Window
         _existing = existing;
         _isNew = camera == null || !existing.Any(c => c.Id == camera.Id);
         Result = camera?.Clone() ?? new CameraConfig();
-        Title = _isNew ? "Kamera hinzufügen" : $"Kamera bearbeiten – {Result.Name}";
+        Title = _isNew ? Lang.T("Kamera hinzufügen") : Lang.F("Kamera bearbeiten – {0}", Result.Name);
 
         NameBox.Text = _isNew && Result.Name == "Kamera" ? "" : Result.Name;
         HostBox.Text = Result.Host;
@@ -66,12 +67,12 @@ public partial class CameraDialog : Window
     private string? ReadForm()
     {
         var host = HostBox.Text.Trim();
-        if (host.Length == 0) return "Bitte IP-Adresse oder Hostnamen eingeben.";
-        if (host.Contains("://")) return "Bitte nur die IP-Adresse bzw. den Hostnamen eingeben (ohne rtsp:// oder http://).";
-        if (!int.TryParse(RtspPortBox.Text, out var rtsp) || rtsp is < 1 or > 65535) return "Ungültiger RTSP-Port.";
-        if (!int.TryParse(OnvifPortBox.Text, out var onvif) || onvif is < 1 or > 65535) return "Ungültiger ONVIF-Port.";
-        if (!int.TryParse(HttpPortBox.Text, out var http) || http is < 1 or > 65535) return "Ungültiger HTTP-Port.";
-        if (!int.TryParse(ChannelBox.Text, out var ch) || ch is < 1 or > 128) return "Ungültige Kanalnummer.";
+        if (host.Length == 0) return Lang.T("Bitte IP-Adresse oder Hostnamen eingeben.");
+        if (host.Contains("://")) return Lang.T("Bitte nur die IP-Adresse bzw. den Hostnamen eingeben (ohne rtsp:// oder http://).");
+        if (!int.TryParse(RtspPortBox.Text, out var rtsp) || rtsp is < 1 or > 65535) return Lang.T("Ungültiger RTSP-Port.");
+        if (!int.TryParse(OnvifPortBox.Text, out var onvif) || onvif is < 1 or > 65535) return Lang.T("Ungültiger ONVIF-Port.");
+        if (!int.TryParse(HttpPortBox.Text, out var http) || http is < 1 or > 65535) return Lang.T("Ungültiger HTTP-Port.");
+        if (!int.TryParse(ChannelBox.Text, out var ch) || ch is < 1 or > 128) return Lang.T("Ungültige Kanalnummer.");
         Result.HttpPort = http;
 
         Result.Host = host;
@@ -110,7 +111,7 @@ public partial class CameraDialog : Window
         if (err != null) { ShowResult(err); return false; }
 
         _cts = new CancellationTokenSource();
-        SetBusy(true, "Ermittle Streams …");
+        SetBusy(true, Lang.T("Ermittle Streams …"));
         try
         {
             var progress = new Progress<string>(s => BusyText.Text = s);
@@ -141,10 +142,10 @@ public partial class CameraDialog : Window
             Fill(LowPathBox, StreamQuality.Low);
 
             var sb = new StringBuilder();
-            sb.AppendLine(r.OnvifSucceeded ? "ONVIF: Profile gelesen." : "ONVIF: nicht verfügbar – Reolink-Standardpfade geprüft.");
+            sb.AppendLine(r.OnvifSucceeded ? "ONVIF: Profile gelesen." : Lang.T("ONVIF: nicht verfügbar – Reolink-Standardpfade geprüft."));
             foreach (var q in new[] { StreamQuality.Clear, StreamQuality.Mid, StreamQuality.Low })
             {
-                var path = r.Paths.TryGetValue(q, out var p) ? p : "(nicht gefunden)";
+                var path = r.Paths.TryGetValue(q, out var p) ? p : Lang.T("(nicht gefunden)");
                 var probe = r.Probes.TryGetValue(q, out var pr) ? "  " + pr : "";
                 sb.AppendLine($"{q.DisplayName(),-5}: {path}{probe}");
             }
@@ -158,7 +159,7 @@ public partial class CameraDialog : Window
         }
         catch (Exception ex)
         {
-            ShowResult("Fehler bei der Erkennung: " + ex.Message);
+            ShowResult(Lang.T("Fehler bei der Erkennung: ") + ex.Message);
             return false;
         }
         finally
@@ -182,13 +183,13 @@ public partial class CameraDialog : Window
         var err = ReadForm();
         if (err != null) { ShowResult(err); return; }
         _cts = new CancellationTokenSource();
-        SetBusy(true, "Lese Kameranamen …");
+        SetBusy(true, Lang.T("Lese Kameranamen …"));
         FetchNameButton.IsEnabled = false;
         try
         {
             var name = await Core.Reolink.ReolinkApiClient.GetDeviceNameAsync(Result.Host, Result.HttpPort, Result.Username, Result.Password, Result.Channel, _cts.Token);
             if (!string.IsNullOrWhiteSpace(name)) NameBox.Text = name;
-            else ShowResult("Der Kameraname konnte nicht gelesen werden (Reolink-HTTP-API nicht erreichbar, HTTP-Port oder Zugangsdaten prüfen).");
+            else ShowResult(Lang.T("Der Kameraname konnte nicht gelesen werden (Reolink-HTTP-API nicht erreichbar, HTTP-Port oder Zugangsdaten prüfen)."));
         }
         catch (OperationCanceledException) { }
         finally
@@ -203,15 +204,15 @@ public partial class CameraDialog : Window
         var err = ReadForm();
         if (err != null) { ShowResult(err); return; }
         _cts = new CancellationTokenSource();
-        SetBusy(true, "Teste Streams …");
+        SetBusy(true, Lang.T("Teste Streams …"));
         var sb = new StringBuilder();
         try
         {
             foreach (var q in new[] { StreamQuality.Clear, StreamQuality.Mid, StreamQuality.Low })
             {
                 var path = Result.GetPath(q);
-                if (string.IsNullOrWhiteSpace(path)) { sb.AppendLine($"{q.DisplayName(),-5}: (kein Pfad – wird automatisch ermittelt)"); continue; }
-                BusyText.Text = $"Teste {q.DisplayName()} …";
+                if (string.IsNullOrWhiteSpace(path)) { sb.AppendLine($"{q.DisplayName(),-5}: " + Lang.T("(kein Pfad – wird automatisch ermittelt)")); continue; }
+                BusyText.Text = Lang.F("Teste {0} …", q.DisplayName());
                 var r = await StreamProbe.ProbeAsync(RtspUrlBuilder.Build(Result, q), _transport, TimeSpan.FromSeconds(8), _cts.Token);
                 sb.AppendLine($"{q.DisplayName(),-5}: {r}");
                 ShowResult(sb.ToString().TrimEnd());
@@ -232,7 +233,7 @@ public partial class CameraDialog : Window
 
         if (_existing.Any(c => c.Id != Result.Id && string.Equals(c.Host, Result.Host, StringComparison.OrdinalIgnoreCase) && c.Channel == Result.Channel))
         {
-            if (MessageBox.Show(this, "Eine Kamera mit dieser Adresse und diesem Kanal existiert bereits. Trotzdem speichern?", "OpenReo",
+            if (MessageBox.Show(this, Lang.T("Eine Kamera mit dieser Adresse und diesem Kanal existiert bereits. Trotzdem speichern?"), "OpenReo",
                     MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         }
 
@@ -245,8 +246,8 @@ public partial class CameraDialog : Window
             if (string.IsNullOrWhiteSpace(Result.ClearPath) || string.IsNullOrWhiteSpace(Result.LowPath))
             {
                 var answer = MessageBox.Show(this,
-                    "Die Streams konnten nicht automatisch ermittelt werden (Kamera nicht erreichbar oder Zugangsdaten falsch).\n\n" +
-                    "Mit den Reolink-Standardpfaden speichern? Die Verbindung wird automatisch wiederholt, sobald die Kamera erreichbar ist.",
+                    Lang.T("Die Streams konnten nicht automatisch ermittelt werden (Kamera nicht erreichbar oder Zugangsdaten falsch).\n\n") +
+                    Lang.T("Mit den Reolink-Standardpfaden speichern? Die Verbindung wird automatisch wiederholt, sobald die Kamera erreichbar ist."),
                     "OpenReo", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (answer != MessageBoxResult.Yes) return;
                 if (string.IsNullOrWhiteSpace(Result.ClearPath)) Result.ClearPath = RtspUrlBuilder.ReolinkDefault(StreamQuality.Clear, Result.Channel);

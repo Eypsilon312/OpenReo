@@ -1,6 +1,7 @@
 using FFmpeg.AutoGen;
 using OpenReo.Core.Diagnostics;
 using OpenReo.Core.Models;
+using OpenReo.Core.Localization;
 
 namespace OpenReo.Video;
 
@@ -249,7 +250,7 @@ public sealed unsafe class RtspStream : IDisposable
             attempt++;
             var delay = TimeSpan.FromSeconds(Math.Min(_options.ReconnectMaxDelaySeconds, Math.Pow(2, Math.Min(attempt - 1, 8))));
             NextRetryUtc = DateTime.UtcNow + delay;
-            SetStatus(StreamStatus.Reconnecting, LastError ?? "Verbindung verloren");
+            SetStatus(StreamStatus.Reconnecting, LastError ?? Lang.T("Verbindung verloren"));
             _wake.Reset();
             _wake.Wait(delay);
         }
@@ -306,10 +307,10 @@ public sealed unsafe class RtspStream : IDisposable
 
             Touch(connectTimeoutMs);
             ret = ffmpeg.avformat_find_stream_info(fmt, null);
-            if (ret < 0) throw new FFmpegException("Stream-Analyse fehlgeschlagen: " + FFmpegHelper.FriendlyError(ret, _timedOut), ret);
+            if (ret < 0) throw new FFmpegException(Lang.T("Stream-Analyse fehlgeschlagen: ") + FFmpegHelper.FriendlyError(ret, _timedOut), ret);
 
             int videoIndex = ffmpeg.av_find_best_stream(fmt, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, null, 0);
-            if (videoIndex < 0) throw new FFmpegException("Kein Videostream gefunden.");
+            if (videoIndex < 0) throw new FFmpegException(Lang.T("Kein Videostream gefunden."));
             int audioIndex = ffmpeg.av_find_best_stream(fmt, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, videoIndex, null, 0);
             for (int i = 0; i < fmt->nb_streams; i++)
                 if (i != videoIndex && i != audioIndex) fmt->streams[i]->discard = AVDiscard.AVDISCARD_ALL;
@@ -367,7 +368,7 @@ public sealed unsafe class RtspStream : IDisposable
                     errors++;
                     consecutiveErrors++;
                     if (consecutiveErrors > 300)
-                        throw new FFmpegException("Zu viele Decoder-Fehler – Stream wird neu aufgebaut.");
+                        throw new FFmpegException(Lang.T("Zu viele Decoder-Fehler – Stream wird neu aufgebaut."));
                 }
 
                 while (decoder.Receive(frame) == 0)
@@ -394,7 +395,7 @@ public sealed unsafe class RtspStream : IDisposable
                         decoder.CodecName, srcW, srcH,
                         framesInWindow / secs,
                         bytes * 8 / 1000.0 / secs,
-                        decoder.DecoderDescription + (decoder.IsHardware && converter.UsesGpuScaling ? " + GPU-Skalierung" : ""),
+                        decoder.DecoderDescription + (decoder.IsHardware && converter.UsesGpuScaling ? Lang.T(" + GPU-Skalierung") : ""),
                         decoder.IsHardware,
                         outW, outH,
                         frames, errors);

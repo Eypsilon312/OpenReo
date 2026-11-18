@@ -1,7 +1,8 @@
 <Window x:Class="OpenReo.App.Dialogs.CameraDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Style="{StaticResource DialogWindow}" WindowStartupLocation="CenterOwner" Title="Kamera" Width="600" SizeToContent="Height" ResizeMode="NoResize">
+        xmlns:l="clr-namespace:OpenReo.App.Infrastructure"
+        Style="{StaticResource DialogWindow}" WindowStartupLocation="CenterOwner" Title="{l:T 'Kamera'}" Width="600" SizeToContent="Height" ResizeMode="NoResize">
     <Grid Margin="20,14,20,18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -30,13 +31,13 @@
             </Grid.RowDefinitions>
 
             <StackPanel Grid.ColumnSpan="7" Margin="0,0,0,10">
-                <Label Content="Name" />
+                <Label Content="{l:T 'Name'}" />
                 <DockPanel>
                     <Button x:Name="FetchNameButton" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnFetchNameClick"
-                            ToolTip="Den in der Kamera eingestellten Namen übernehmen (Reolink-API)">
+                            ToolTip="{l:T 'Den in der Kamera eingestellten Namen übernehmen (Reolink-API)'}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE896;" Style="{StaticResource Icon}" Margin="0,0,6,0" />
-                            <TextBlock Text="Von Kamera" />
+                            <TextBlock Text="{l:T 'Von Kamera'}" />
                         </StackPanel>
                     </Button>
                     <TextBox x:Name="NameBox" />
@@ -44,19 +45,19 @@
             </StackPanel>
 
             <StackPanel Grid.Row="1" Margin="0,0,0,10">
-                <Label Content="IP-Adresse / Hostname" />
+                <Label Content="{l:T 'IP-Adresse / Hostname'}" />
                 <TextBox x:Name="HostBox" />
             </StackPanel>
             <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,10">
-                <Label Content="RTSP-Port" />
+                <Label Content="{l:T 'RTSP-Port'}" />
                 <TextBox x:Name="RtspPortBox" />
             </StackPanel>
             <StackPanel Grid.Row="1" Grid.Column="4" Margin="0,0,0,10">
-                <Label Content="ONVIF-Port" />
+                <Label Content="{l:T 'ONVIF-Port'}" />
                 <TextBox x:Name="OnvifPortBox" />
             </StackPanel>
             <StackPanel Grid.Row="1" Grid.Column="6" Margin="0,0,0,10">
-                <Label Content="HTTP-Port" ToolTip="Port der Reolink-Weboberfläche (80, bei HTTPS 443) – wird für den Kameranamen verwendet" />
+                <Label Content="{l:T 'HTTP-Port'}" ToolTip="{l:T 'Port der Reolink-Weboberfläche (80, bei HTTPS 443) – wird für den Kameranamen verwendet'}" />
                 <TextBox x:Name="HttpPortBox" />
             </StackPanel>
 
@@ -67,11 +68,11 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <Label Content="Benutzername" />
+                    <Label Content="{l:T 'Benutzername'}" />
                     <TextBox x:Name="UserBox" />
                 </StackPanel>
                 <StackPanel Grid.Column="2">
-                    <Label Content="Passwort" />
+                    <Label Content="{l:T 'Passwort'}" />
                     <PasswordBox x:Name="PasswordBox" />
                 </StackPanel>
             </Grid>
@@ -83,15 +84,15 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <Label Content="Kanal (1 bei Einzelkameras, NVR: Kanalnummer)" />
+                    <Label Content="{l:T 'Kanal (1 bei Einzelkameras, NVR: Kanalnummer)'}" />
                     <TextBox x:Name="ChannelBox" />
                 </StackPanel>
                 <StackPanel Grid.Column="2">
-                    <Label Content="Stream-Qualität" />
+                    <Label Content="{l:T 'Stream-Qualität'}" />
                     <ComboBox x:Name="QualityBox">
-                        <ComboBoxItem Content="Clear – Hauptstream" Tag="Clear" />
-                        <ComboBoxItem Content="Mid – mittlere Auflösung" Tag="Mid" />
-                        <ComboBoxItem Content="Low – Substream" Tag="Low" />
+                        <ComboBoxItem Content="{l:T 'Clear – Hauptstream'}" Tag="Clear" />
+                        <ComboBoxItem Content="{l:T 'Mid – mittlere Auflösung'}" Tag="Mid" />
+                        <ComboBoxItem Content="{l:T 'Low – Substream'}" Tag="Low" />
                     </ComboBox>
                 </StackPanel>
             </Grid>
@@ -99,7 +100,7 @@
 
         <!-- Streams -->
         <StackPanel Grid.Row="1">
-            <TextBlock Text="STREAMS (RTSP-PFAD ODER VOLLSTÄNDIGE URL)" Style="{StaticResource SectionHeader}" Margin="0,18,0,8" />
+            <TextBlock Text="{l:T 'STREAMS (RTSP-PFAD ODER VOLLSTÄNDIGE URL)'}" Style="{StaticResource SectionHeader}" Margin="0,18,0,8" />
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="56" />
@@ -111,25 +112,25 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Text="Clear" VerticalAlignment="Center" Style="{StaticResource DimText}" />
-                <TextBox x:Name="ClearPathBox" Grid.Column="1" Margin="0,0,0,6" ToolTip="leer = automatisch ermitteln" />
+                <TextBox x:Name="ClearPathBox" Grid.Column="1" Margin="0,0,0,6" ToolTip="{l:T 'leer = automatisch ermitteln'}" />
                 <TextBlock Grid.Row="1" Text="Mid" VerticalAlignment="Center" Style="{StaticResource DimText}" />
-                <TextBox x:Name="MidPathBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,6" ToolTip="leer = automatisch ermitteln" />
+                <TextBox x:Name="MidPathBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,6" ToolTip="{l:T 'leer = automatisch ermitteln'}" />
                 <TextBlock Grid.Row="2" Text="Low" VerticalAlignment="Center" Style="{StaticResource DimText}" />
-                <TextBox x:Name="LowPathBox" Grid.Row="2" Grid.Column="1" ToolTip="leer = automatisch ermitteln" />
+                <TextBox x:Name="LowPathBox" Grid.Row="2" Grid.Column="1" ToolTip="{l:T 'leer = automatisch ermitteln'}" />
             </Grid>
             <TextBlock Style="{StaticResource DimText}" FontSize="11.5" TextWrapping="Wrap" Margin="0,6,0,0"
-                       Text="Leere Felder werden beim Speichern automatisch über ONVIF bzw. die bekannten Reolink-Pfade ermittelt. Zugangsdaten werden automatisch eingefügt." />
+                       Text="{l:T 'Leere Felder werden beim Speichern automatisch über ONVIF bzw. die bekannten Reolink-Pfade ermittelt. Zugangsdaten werden automatisch eingefügt.'}" />
             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                 <Button x:Name="DetectButton" Click="OnDetectClick" Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE721;" Style="{StaticResource Icon}" Margin="0,0,6,0" />
-                        <TextBlock Text="Automatisch ermitteln" />
+                        <TextBlock Text="{l:T 'Automatisch ermitteln'}" />
                     </StackPanel>
                 </Button>
                 <Button x:Name="TestButton" Click="OnTestClick">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE768;" Style="{StaticResource Icon}" Margin="0,0,6,0" />
-                        <TextBlock Text="Streams testen" />
+                        <TextBlock Text="{l:T 'Streams testen'}" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -144,8 +145,8 @@
 
         <DockPanel Grid.Row="4" Margin="0,18,0,0" LastChildFill="False">
             <TextBlock x:Name="BusyText" DockPanel.Dock="Left" Style="{StaticResource DimText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="330" />
-            <Button DockPanel.Dock="Right" x:Name="SaveButton" Style="{StaticResource AccentButton}" Content="Speichern" MinWidth="100" IsDefault="True" Click="OnSaveClick" Margin="8,0,0,0" />
-            <Button DockPanel.Dock="Right" Content="Abbrechen" MinWidth="90" IsCancel="True" />
+            <Button DockPanel.Dock="Right" x:Name="SaveButton" Style="{StaticResource AccentButton}" Content="{l:T 'Speichern'}" MinWidth="100" IsDefault="True" Click="OnSaveClick" Margin="8,0,0,0" />
+            <Button DockPanel.Dock="Right" Content="{l:T 'Abbrechen'}" MinWidth="90" IsCancel="True" />
         </DockPanel>
     </Grid>
 </Window>
