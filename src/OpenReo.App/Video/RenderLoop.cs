@@ -13,18 +13,18 @@ public sealed class VideoSurface
 {
     internal int RefCount;
 
-    public RtspStream Stream { get; }
+    public FrameExchange Frames { get; }
     public WriteableBitmap? Bitmap { get; private set; }
 
     /// <summary>Raised (UI thread) when a new bitmap instance was created (first frame / size change).</summary>
     public event Action<VideoSurface>? BitmapChanged;
 
-    public VideoSurface(RtspStream stream) { Stream = stream; }
+    public VideoSurface(FrameExchange frames) { Frames = frames; }
 
     /// <summary>Copies the newest decoded frame into the bitmap. UI thread only.</summary>
     internal unsafe void Update()
     {
-        if (!Stream.Frames.TryAcquireLatest(out var frame) || frame.Data == IntPtr.Zero) return;
+        if (!Frames.TryAcquireLatest(out var frame) || frame.Data == IntPtr.Zero) return;
 
         bool created = false;
         if (Bitmap == null || Bitmap.PixelWidth != frame.Width || Bitmap.PixelHeight != frame.Height)
@@ -64,15 +64,18 @@ public sealed class VideoSurface
 /// </summary>
 public static class RenderLoop
 {
-    private static readonly Dictionary<RtspStream, VideoSurface> Surfaces = new();
+    private static readonly Dictionary<FrameExchange, VideoSurface> Surfaces = new();
     private static bool _hooked;
 
-    public static VideoSurface Acquire(RtspStream stream)
+    public static VideoSurface Acquire(RtspStream stream) => Acquire(stream.Frames);
+
+    /// <summary>Surface for any frame source (live stream or recording playback).</summary>
+    public static VideoSurface Acquire(FrameExchange frames)
     {
-        if (!Surfaces.TryGetValue(stream, out var s))
+        if (!Surfaces.TryGetValue(frames, out var s))
         {
-            s = new VideoSurface(stream);
-            Surfaces[stream] = s;
+            s = new VideoSurface(frames);
+            Surfaces[frames] = s;
         }
         s.RefCount++;
         Hook();
@@ -83,7 +86,7 @@ public static class RenderLoop
     {
         if (--surface.RefCount <= 0)
         {
-            Surfaces.Remove(surface.Stream);
+            Surfaces.Remove(surface.Frames);
             if (Surfaces.Count == 0) Unhook();
         }
     }

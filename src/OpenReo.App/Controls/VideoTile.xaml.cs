@@ -24,6 +24,7 @@ public interface ITileHost
     void SetCameraQuality(CameraViewModel camera, StreamQuality quality);
     void EditCamera(CameraViewModel camera);
     void OpenCameraSettings(CameraViewModel camera);
+    void OpenPlayback(CameraViewModel camera);
     Guid? AudioCameraId { get; }
     void ToggleAudio(CameraViewModel camera);
 }
@@ -397,6 +398,7 @@ public partial class VideoTile : UserControl
             menu.Items.Add(Item(Lang.T("Zoom zurücksetzen"), ResetZoom, "Mittlere Maustaste", _zoom > 1.001));
             menu.Items.Add(Item(Lang.T("Neu verbinden"), () => _lease?.Stream.Reconnect()));
             menu.Items.Add(new Separator());
+            menu.Items.Add(Item(Lang.T("Wiedergabe (Aufnahmen) …"), () => _host.OpenPlayback(cam)));
             menu.Items.Add(Item(Lang.T("Kameraeinstellungen …"), () => _host.OpenCameraSettings(cam)));
             menu.Items.Add(Item(Lang.T("Verbindung bearbeiten …"), () => _host.EditCamera(cam)));
             if (!_host.IsMaximized)

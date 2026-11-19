@@ -1,4 +1,4 @@
-﻿<Window x:Class="OpenReo.App.MainWindow"
+<Window x:Class="OpenReo.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:l="clr-namespace:OpenReo.App.Infrastructure"
@@ -118,6 +118,13 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE728;" Style="{StaticResource Icon}" Margin="0,0,6,0" />
                             <TextBlock Text="{l:T 'Ansichten'}" Margin="0,0,4,0" />
+                            <TextBlock Text="&#xE70D;" Style="{StaticResource Icon}" FontSize="9" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="PlaybackButton" DockPanel.Dock="Left" Style="{StaticResource ToolButton}" ToolTip="{l:T 'Aufnahmen wiedergeben'}" Click="OnPlaybackMenuClick">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE81C;" Style="{StaticResource Icon}" Margin="0,0,6,0" />
+                            <TextBlock Text="{l:T 'Wiedergabe'}" Margin="0,0,4,0" />
                             <TextBlock Text="&#xE70D;" Style="{StaticResource Icon}" FontSize="9" />
                         </StackPanel>
                     </Button>

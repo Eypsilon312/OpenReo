@@ -1,0 +1,90 @@
+<Window x:Class="OpenReo.App.Playback.PlaybackWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="clr-namespace:OpenReo.App.Infrastructure"
+        xmlns:controls="clr-namespace:OpenReo.App.Controls"
+        Style="{StaticResource DialogWindow}" WindowStartupLocation="CenterOwner" ShowInTaskbar="True"
+        Title="{l:T 'Wiedergabe'}" Width="1280" Height="820" MinWidth="820" MinHeight="520">
+    <Grid Background="{StaticResource PanelBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="210" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Days -->
+        <Border Background="{StaticResource BgBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="16,14,12,8">
+                    <TextBlock x:Name="CameraNameText" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="FolderText" Style="{StaticResource DimText}" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Top" Text="{l:T 'TAGE MIT AUFNAHMEN'}" Style="{StaticResource SectionHeader}" Margin="16,6,0,4" />
+                <Button DockPanel.Dock="Bottom" Content="{l:T 'Neu einlesen'}" Margin="12,8,12,12" Click="OnRescanClick" />
+                <ListBox x:Name="DayList" SelectionChanged="OnDaySelected" />
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Video -->
+            <Border x:Name="VideoHost" Background="Black" ClipToBounds="True">
+                <Grid>
+                    <Image x:Name="VideoImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="Linear" />
+                    <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" Background="#A0000000" CornerRadius="4" Padding="8,3">
+                        <TextBlock x:Name="OverlayTime" FontSize="13" FontWeight="SemiBold" />
+                    </Border>
+                    <Border x:Name="StatusPanel" Background="#C0101216" CornerRadius="6" Padding="16,10" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
+                        <TextBlock x:Name="StatusText" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="480" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Timeline -->
+            <controls:TimelineControl x:Name="Timeline" Grid.Row="1" Margin="12,10,12,0" />
+            <TextBlock Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,14,0" FontSize="10.5" Style="{StaticResource DimText}"
+                       Text="{l:T 'Mausrad: zoomen · Ziehen: verschieben · Klick: springen'}" />
+
+            <!-- Controls -->
+            <DockPanel Grid.Row="2" Margin="12,10,12,12" LastChildFill="False">
+                <Button DockPanel.Dock="Left" Style="{StaticResource ToolButton}" Click="OnPrevFileClick" ToolTip="{l:T 'Vorherige Aufnahme'}">
+                    <TextBlock Text="&#xE892;" Style="{StaticResource Icon}" />
+                </Button>
+                <Button DockPanel.Dock="Left" Style="{StaticResource ToolButton}" Click="OnBackClick" ToolTip="{l:T '10 s zurück (←)'}">
+                    <TextBlock Text="−10 s" />
+                </Button>
+                <Button x:Name="PlayButton" DockPanel.Dock="Left" Style="{StaticResource AccentButton}" Click="OnPlayPauseClick" MinWidth="44" Margin="4,0" ToolTip="{l:T 'Abspielen / Pause (Leertaste)'}">
+                    <TextBlock x:Name="PlayIcon" Text="&#xE768;" Style="{StaticResource Icon}" />
+                </Button>
+                <Button DockPanel.Dock="Left" Style="{StaticResource ToolButton}" Click="OnForwardClick" ToolTip="{l:T '10 s vor (→)'}">
+                    <TextBlock Text="+10 s" />
+                </Button>
+                <Button DockPanel.Dock="Left" Style="{StaticResource ToolButton}" Click="OnNextFileClick" ToolTip="{l:T 'Nächste Aufnahme'}">
+                    <TextBlock Text="&#xE893;" Style="{StaticResource Icon}" />
+                </Button>
+                <ComboBox x:Name="SpeedBox" DockPanel.Dock="Left" Width="80" Margin="10,0,0,0" SelectionChanged="OnSpeedChanged" ToolTip="{l:T 'Geschwindigkeit'}">
+                    <ComboBoxItem Content="0.25×" Tag="0.25" />
+                    <ComboBoxItem Content="0.5×" Tag="0.5" />
+                    <ComboBoxItem Content="1×" Tag="1" />
+                    <ComboBoxItem Content="2×" Tag="2" />
+                    <ComboBoxItem Content="4×" Tag="4" />
+                    <ComboBoxItem Content="8×" Tag="8" />
+                    <ComboBoxItem Content="16×" Tag="16" />
+                </ComboBox>
+                <Button x:Name="SoundButton" DockPanel.Dock="Left" Style="{StaticResource ToolButton}" Click="OnSoundClick" Margin="6,0,0,0" ToolTip="{l:T 'Ton (nur bei 1×)'}">
+                    <TextBlock x:Name="SoundIcon" Text="&#xE767;" Style="{StaticResource Icon}" />
+                </Button>
+                <TextBlock x:Name="TimeText" DockPanel.Dock="Left" VerticalAlignment="Center" Margin="14,0,0,0" FontSize="14" FontWeight="SemiBold" />
+
+                <Button DockPanel.Dock="Right" Content="{l:T 'Datei speichern unter …'}" Click="OnSaveFileClick" Margin="8,0,0,0" />
+                <Button DockPanel.Dock="Right" Content="{l:T 'Im Explorer zeigen'}" Click="OnShowInExplorerClick" />
+                <TextBlock x:Name="FileText" DockPanel.Dock="Right" Style="{StaticResource DimText}" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="11.5"
+                           MaxWidth="320" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Grid>
+    </Grid>
+</Window>

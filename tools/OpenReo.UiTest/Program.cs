@@ -61,6 +61,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length >= 2 && args[0] == "--diag-playback") return DiagPlayback(args[1]);
         OpenReo.Core.Localization.Lang.Initialize("de"); // the checks below use the German texts
         string? shots = args.Length > 0 ? args[0] : null;
         if (shots != null) Directory.CreateDirectory(shots);
@@ -187,7 +188,7 @@ internal static class Program
             DoEvents();
             var content = (DependencyObject)w.FindName("ContentPanel");
             int orange = FindAll<Border>(content).Count(b => b.Background is SolidColorBrush { Color: { R: 0xF5, G: 0x9E, B: 0x0B } } && b.Width is double.NaN);
-            Check(orange >= 168, $"FTP-Plan „Bewegung“ (Wert 2) wird orange angezeigt ({orange} Felder)");
+            Check(orange >= 168, $"FTP-Plan „Timer“ (Wert 2) wird wie in der Reolink-App orange angezeigt ({orange} Felder)");
             var interval = FindAll<ComboBox>(content).FirstOrDefault(c => c.Items.OfType<ComboBoxItem>().Any(i => (string)i.Tag == "1800"));
             Check(interval != null, "FTP-Intervall als Auswahl aus der Kamera-Liste (15 … 1800 s)");
             var stream = FindAll<ComboBox>(content).FirstOrDefault(c => c.Items.OfType<ComboBoxItem>().Any(i => (string)i.Content == "Ext-Stream (Mid)"));
@@ -203,9 +204,10 @@ internal static class Program
             string Param(string cmd) => old.SetCalls.LastOrDefault(c => c.Cmd == cmd).Param?.ToJsonString() ?? "null";
             Check(JsonNode.DeepEquals(JsonNode.Parse(Param("SetFtp")), JsonNode.Parse("""{"Ftp":{"interval":60}}""")), $"Intervall-Änderung sendet nur das Intervall: {Param("SetFtp")}");
 
-            // Paint with mode "Dauerhaft": Mon–Fri timer, weekend off.
+            // Paint with mode "Bewegung" (1): Mon–Fri motion, weekend off.
             DoEvents();
             var modeBox = FindAll<ComboBox>(content).First(c => c.Items.OfType<ComboBoxItem>().Any(i => i.Tag is char));
+            Check((char)((ComboBoxItem)modeBox.Items[0]).Tag == '2', "Malmodus: Timer (2) ist Standard");
             modeBox.SelectedItem = modeBox.Items.OfType<ComboBoxItem>().First(i => i.Tag is '1');
             var workdays = FindAll<Button>(content).First(b => (b.Content as string)?.StartsWith("Mo–Fr") == true);
             workdays.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
@@ -214,7 +216,7 @@ internal static class Program
             WaitUntil(() => old.SetCalls.Count >= 2 && !Private<bool>(w, "_busy"));
             var expected = new string('0', 24) + new string('1', 24 * 5) + new string('0', 24);
             Check(JsonNode.DeepEquals(JsonNode.Parse(Param("SetFtp")), JsonNode.Parse($"{{\"Ftp\":{{\"schedule\":{{\"table\":\"{expected}\"}}}}}}")),
-                "Zeitplan „Dauerhaft Mo–Fr“ wird korrekt als 0/1-Plan gesendet");
+                "Zeitplan „Bewegung Mo–Fr“ wird korrekt als 0/1-Plan gesendet");
             w.Close();
         }
 
@@ -243,6 +245,70 @@ internal static class Program
             lease.Release(true);
         }
         else Console.WriteLine("SKIP  Ton-Test (keine Testdatei mit Audiospur angegeben)");
+
+        // ---------------------------------------------------------------- recordings / playback (optional: args[2] = simulated NAS folder)
+        if (args.Length > 2 && Directory.Exists(args[2]))
+        {
+            var root = args[2];
+            var folders = OpenReo.Video.Recordings.RecordingFolders.SubFolders(root);
+            Check(folders.SequenceEqual(new[] { "Einfahrt", "Garten" }), "Aufnahmen: Unterordner erkannt, NAS-Systemordner ignoriert (" + string.Join(", ", folders) + ")");
+            Check(OpenReo.Video.Recordings.RecordingFolders.Match("Einfahrt", folders) == "Einfahrt" && OpenReo.Video.Recordings.RecordingFolders.Match("Kamera Garten", folders) == "Garten",
+                "Aufnahmen: automatische Zuordnung über den Kameranamen");
+
+            var recIdx = OpenReo.Video.Recordings.RecordingIndex.ScanAsync(Path.Combine(root, "Einfahrt")).GetAwaiter().GetResult();
+            var starts = recIdx.Files.Select(f => f.Start.ToString("yyyy-MM-dd HH:mm:ss")).ToList();
+            Check(starts.SequenceEqual(new[] { "2026-11-17 23:00:00", "2026-11-18 10:00:00", "2026-11-18 10:01:00", "2026-11-18 10:02:00", "2026-11-18 10:10:00" }),
+                "Aufnahmen: Startzeit aus Dateinamen (…_20261118100000.mp4) " + string.Join(" | ", starts));
+            var garten = OpenReo.Video.Recordings.RecordingIndex.ScanAsync(Path.Combine(root, "Garten")).GetAwaiter().GetResult();
+            Check(garten.Files.Select(f => f.Start.ToString("yyyy-MM-dd HH:mm:ss")).SequenceEqual(new[] { "2026-11-17 08:00:00", "2026-11-18 12:00:00" }),
+                "Aufnahmen: Startzeit aus RecM01_…-Namen und aus Datumsordnern (2026/11/17/080000.mp4)");
+            OpenReo.Video.Recordings.RecordingIndex.LoadDurationsAsync(recIdx.Files, null, CancellationToken.None).GetAwaiter().GetResult();
+            Check(recIdx.Files.All(f => f.Duration is { TotalSeconds: > 59 and < 61.5 }), "Aufnahmen: Dauer exakt aus den Dateien gelesen (60 s)");
+
+            // ---- playback audio must arrive evenly (no bursts → no gaps in the sound)
+            foreach (var (label, file) in new[] { ("fein verschachtelt", recIdx.Files[1].Path), ("2-s-Tonblöcke", args.Length > 3 ? args[3] : "") })
+            {
+                if (!File.Exists(file)) { Console.WriteLine($"SKIP  Wiedergabe-Ton ({label})"); continue; }
+                var sink = new TimedAudioSink();
+                using var ps = new OpenReo.Video.PlaybackSession(HardwareAccelerationMode.Auto) { AudioSink = sink };
+                ps.Open(file, 5);
+                ps.Paused = false;
+                Thread.Sleep(5000);
+                var (maxLead, maxGapMs, seconds, span) = sink.Analyze();
+                Check(maxLead < 0.7 && maxGapMs < 400 && seconds >= span - 0.3, $"Wiedergabe-Ton gleichmäßig ({label}): max. Vorlauf {maxLead:0.00} s, max. Lücke {maxGapMs:0} ms, {seconds:0.0} s Ton in {span:0.0} s");
+            }
+
+            var pbCam = new CameraConfig { Name = "Einfahrt" };
+            var pw = new OpenReo.App.Playback.PlaybackWindow(pbCam, Path.Combine(root, "Einfahrt"), new AppSettings());
+            pw.Show();
+            var days = (ListBox)pw.FindName("DayList");
+            Check(WaitUntil(() => days.Items.Count == 2), "Wiedergabe: 2 Tage mit Aufnahmen gelistet");
+            var seekTo = pw.GetType().GetMethod("SeekTo", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var session = Private<OpenReo.Video.PlaybackSession>(pw, "_session");
+            DateTime? Now() => (DateTime?)pw.GetType().GetProperty("CurrentTime", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(pw);
+
+            seekTo.Invoke(pw, new object[] { new DateTime(2026, 11, 18, 10, 1, 30) });
+            Check(WaitUntil(() => Now() is DateTime t && Math.Abs((t - new DateTime(2026, 11, 18, 10, 1, 30)).TotalSeconds) < 1.0, 6000),
+                $"Wiedergabe: Sprung auf 10:01:30 exakt ({Now():HH:mm:ss.f})");
+            WaitUntil(() => false, 1200); // let timer + render loop update the picture
+            Screenshot(pw, shots, "30-wiedergabe");
+
+            // seamless continuation: 10:00:57 at 4× → must continue in the 10:01 file
+            ((ComboBox)pw.FindName("SpeedBox")).SelectedIndex = 4; // 4×
+            seekTo.Invoke(pw, new object[] { new DateTime(2026, 11, 18, 10, 0, 57) });
+            WaitUntil(() => Now() is DateTime t0 && t0 < new DateTime(2026, 11, 18, 10, 0, 58), 4000);
+            pw.GetType().GetMethod("SetPaused", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(pw, new object[] { false });
+            Check(WaitUntil(() => Now() is DateTime t && t > new DateTime(2026, 11, 18, 10, 1, 3), 8000),
+                $"Wiedergabe: nahtloser Übergang in die nächste Datei ({Now():HH:mm:ss})");
+
+            // gap: 10:05 has no recording → continue at 10:10
+            seekTo.Invoke(pw, new object[] { new DateTime(2026, 11, 18, 10, 5, 0) });
+            var status = (TextBlock)pw.FindName("StatusText");
+            Check(WaitUntil(() => Now() is DateTime t && t >= new DateTime(2026, 11, 18, 10, 10, 0) && t < new DateTime(2026, 11, 18, 10, 11, 0), 6000)
+                  && status.Text.Contains("10:10:00"), $"Wiedergabe: Lücke erkannt, weiter bei 10:10:00 ({Now():HH:mm:ss}, \"{status.Text}\")");
+            pw.Close();
+        }
+        else Console.WriteLine("SKIP  Wiedergabe-Test (kein Test-Aufnahmeordner angegeben)");
 
         // ---------------------------------------------------------------- English UI
         OpenReo.Core.Localization.Lang.Initialize("en");
@@ -277,6 +343,34 @@ internal static class Program
         return _failures;
     }
 
+    /// <summary>Diagnostics: plays a file at 1× and prints position vs. real time and audio statistics.</summary>
+    private static int DiagPlayback(string file)
+    {
+        OpenReo.Video.FFmpegLoader.Initialize();
+        var sink = new TimedAudioSink();
+        using var player = new OpenReo.App.Audio.AudioPlayer { Muted = true, MaxBacklog = TimeSpan.FromSeconds(1) };
+        var tee = new TeeAudioSink(sink, player);
+        using var ps = new OpenReo.Video.PlaybackSession(HardwareAccelerationMode.Auto) { AudioSink = tee };
+        player.Start();
+        var buf = (NAudio.Wave.BufferedWaveProvider)typeof(OpenReo.App.Audio.AudioPlayer).GetField("_buffer", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(player)!;
+        ps.SetTargetSize(1920, 1080);
+        ps.Open(file, 30);
+        ps.Paused = false;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        double startPos = -1;
+        int consumed = 0;
+        for (int i = 1; i <= 16; i++)
+        {
+            var until = sw.ElapsedMilliseconds + 500;
+            while (sw.ElapsedMilliseconds < until) { if (ps.Frames.TryAcquireLatest(out _)) consumed++; Thread.Sleep(10); }
+            if (startPos < 0 && ps.Position > 30) startPos = ps.Position;
+            Console.WriteLine($"t={sw.Elapsed.TotalSeconds,5:0.0}s  Position={ps.Position,7:0.00}s  shown={consumed}  audio buffer={buf.BufferedDuration.TotalMilliseconds,4:0} ms");
+        }
+        var (lead, gap, secs, span) = sink.Analyze();
+        Console.WriteLine($"audio: {secs:0.0} s in {span:0.0} s, max gap {gap:0} ms, max lead {lead:0.00} s, error={ps.Error}");
+        return 0;
+    }
+
     private static IEnumerable<T> FindAll<T>(DependencyObject root) where T : DependencyObject
     {
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
@@ -286,4 +380,39 @@ internal static class Program
             foreach (var c in FindAll<T>(child)) yield return c;
         }
     }
+}
+
+/// <summary>Records when audio arrives: lead over real time and gaps between writes.</summary>
+sealed class TimedAudioSink : OpenReo.Video.IAudioSink
+{
+    private readonly object _sync = new();
+    private readonly List<(long Tick, int Bytes)> _writes = new();
+    public void Write(ReadOnlySpan<byte> pcm) { lock (_sync) _writes.Add((Environment.TickCount64, pcm.Length)); }
+
+    public (double MaxLead, double MaxGapMs, double Seconds, double Span) Analyze()
+    {
+        lock (_sync)
+        {
+            if (_writes.Count < 2) return (99, 99999, 0, 0);
+            long t0 = _writes[0].Tick; double audio = 0, maxLead = 0, maxGap = 0;
+            for (int i = 0; i < _writes.Count; i++)
+            {
+                audio += _writes[i].Bytes / 192000.0; // seconds of 48 kHz stereo S16
+                maxLead = Math.Max(maxLead, audio - (_writes[i].Tick - t0) / 1000.0);
+                if (i > 0) maxGap = Math.Max(maxGap, _writes[i].Tick - _writes[i - 1].Tick);
+            }
+            return (maxLead, maxGap, audio, (_writes[^1].Tick - t0) / 1000.0);
+        }
+    }
+}
+
+/// <summary>Forwards audio to two sinks and reports the output latency of the second (real player).</summary>
+sealed class TeeAudioSink : OpenReo.Video.IAudioSink, OpenReo.Video.IAudioOutput
+{
+    private readonly OpenReo.Video.IAudioSink _a;
+    private readonly OpenReo.App.Audio.AudioPlayer _b;
+    public TeeAudioSink(OpenReo.Video.IAudioSink a, OpenReo.App.Audio.AudioPlayer b) { _a = a; _b = b; }
+    public void Write(ReadOnlySpan<byte> pcm) { _a.Write(pcm); _b.Write(pcm); }
+    public TimeSpan OutputLatency => _b.OutputLatency;
+    public void Flush() => _b.Flush();
 }

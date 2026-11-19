@@ -45,6 +45,9 @@ public sealed class CameraConfig
     public string MidPath { get; set; } = "";
     public string LowPath { get; set; } = "";
 
+    /// <summary>Recording folder of this camera: sub folder name below the recordings root, or a full path.</summary>
+    public string? RecordingFolder { get; set; }
+
     public string? Manufacturer { get; set; }
     public string? Model { get; set; }
     public string? FirmwareVersion { get; set; }
@@ -80,6 +83,14 @@ public sealed class CameraConfig
 
     public CameraConfig Clone() => (CameraConfig)MemberwiseClone();
 
+    /// <summary>Resolves the recording folder (null if none is assigned).</summary>
+    public string? ResolveRecordingFolder(string? root)
+    {
+        if (string.IsNullOrWhiteSpace(RecordingFolder)) return null;
+        if (Path.IsPathFullyQualified(RecordingFolder) || RecordingFolder.StartsWith(@"\\")) return RecordingFolder;
+        return string.IsNullOrWhiteSpace(root) ? null : Path.Combine(root, RecordingFolder);
+    }
+
     /// <summary>
     /// True if the name is only a placeholder (empty, IP address, model / hardware id such as "IPC_...")
     /// and may be replaced by the name configured in the camera.
@@ -98,6 +109,7 @@ public sealed class CameraConfig
         Name = o.Name; Host = o.Host; RtspPort = o.RtspPort; OnvifPort = o.OnvifPort; HttpPort = o.HttpPort;
         Username = o.Username; Password = o.Password; Channel = o.Channel; Quality = o.Quality;
         ClearPath = o.ClearPath; MidPath = o.MidPath; LowPath = o.LowPath;
+        RecordingFolder = o.RecordingFolder;
         Manufacturer = o.Manufacturer; Model = o.Model; FirmwareVersion = o.FirmwareVersion; SerialNumber = o.SerialNumber;
     }
 }

@@ -44,6 +44,13 @@ OpenReo is a standalone Windows client (C# / .NET 8 / WPF) for live monitoring o
   Only settings reported by the respective camera are shown (including value ranges); old and new
   firmware (V20 commands, schedule modes timer/motion) are detected. Only changed values are sent.
   Intentionally not included (use the web UI/app): firmware update, users, network/Wi-Fi, AI zones, formatting.
+- **Playback of recordings** (NAS / network drive): choose the folder where the cameras store their
+  recordings (e.g. FTP uploads to TrueNAS, `\\truenas\cameras`); its sub folders are assigned to the cameras
+  automatically by name. Per camera ("Wiedergabe"/"Playback"): list of days, 24 h time line (mouse wheel zoom
+  down to 5 min, drag to scroll, click to jump), frame accurate seeking, play/pause, ±10 s, 0.25×–16×, sound,
+  seamless continuation into the next file, gaps are skipped, "save file as" / show in Explorer. Start times are
+  read from the file names (`…_20261118143512.mp4`, `RecM01_20261118_143512_….mp4`, `2026/11/18/143512.mp4`)
+  or the file time stamp; durations are read once and cached.
 - **Languages**: English and German, chosen automatically from the Windows display language or set manually
   (settings → language; applied after a restart). All texts are checked by `tools\check-translations.ps1`.
 - **Persistence**: cameras (passwords encrypted with Windows DPAPI), quality per camera and global,
@@ -117,18 +124,22 @@ src/
     StreamManager           – RTSP stream manager: streams per (camera, quality), reference counting,
                               delayed close, restart on configuration change
     StreamProbe / CameraStreamDetector – stream test and automatic path detection
+    PlaybackSession         – playback of recorded files: exact seeking, speed, separate audio reader for lip sync
+    Recordings/             – RecordingIndex (file times from names/folders, cached durations), folder matching
   OpenReo.App      (WPF)
     Controls/MultiViewPanel – multiview manager: layout grid, tile pool, maximize, assignment
     Controls/VideoTile      – video, overlay, zoom/pan, drag & drop, context menu
     Video/RenderLoop        – copies new frames once per display refresh into WriteableBitmaps
     Audio/                  – audio player (NAudio) and controller for the audible camera
     CameraSettings/         – camera settings window (generated forms, schedule editor, PTZ)
-    Dialogs/                – camera, ONVIF discovery, settings, layout editor
+    Playback/, Controls/TimelineControl – playback window with zoomable 24 h time line
+    Dialogs/                – camera, ONVIF discovery, settings, layout editor, recording folders
 tools/
   OpenReo.StreamBench       – load test: N real streams through the same video layer, measures fps/CPU/RAM
-  OpenReo.UiTest            – automated UI test of the camera settings against a simulated Reolink API
+  OpenReo.UiTest            – automated tests: camera settings (simulated Reolink API), audio, playback, English UI
   get-ffmpeg.ps1            – downloads the FFmpeg libraries
   check-translations.ps1    – verifies that every UI text has an English translation
+  deploy-local.ps1          – updates a local installation with the current build (closes/restarts OpenReo)
 installer/                  – Inno Setup script
 ```
 
@@ -166,7 +177,9 @@ Camera settings: `tools\OpenReo.UiTest` opens the settings window against a simu
 and V20 firmware formats including responses captured from a real camera, unsupported commands, wrong
 password) and verifies among other things that only changed fields are sent; it also checks the audio chain (decode,
 playback, latency, switching off) with a test video containing an AAC track, and renders all settings pages in
-English to make sure no German text is left (57 checks, all passing).
+English to make sure no German text is left. Recording playback is tested with a simulated NAS folder (two naming
+schemes, date folders, gaps): time parsing, exact seeking, seamless continuation, gap handling and even audio
+delivery for finely interleaved and block-wise stored audio (69 checks, all passing).
 
 **Not tested yet** (no hardware available in the development environment): real Reolink cameras
 (including writing camera settings), ONVIF discovery and profile queries against real devices, connection

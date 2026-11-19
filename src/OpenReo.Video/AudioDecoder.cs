@@ -10,6 +10,16 @@ public static class AudioFormat
     public const int Channels = 2;
 }
 
+/// <summary>Audio output that can drop its buffered (not yet heard) audio, e.g. after a seek.</summary>
+public interface IAudioOutput
+{
+    /// <summary>Delay between handing audio over and hearing it (sound card buffers).</summary>
+    TimeSpan OutputLatency { get; }
+
+    /// <summary>Discards audio that was handed over but not played yet.</summary>
+    void Flush();
+}
+
 /// <summary>Receives decoded PCM audio (48 kHz, stereo, signed 16 bit, interleaved).</summary>
 public interface IAudioSink
 {

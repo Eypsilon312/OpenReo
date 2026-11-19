@@ -35,6 +35,9 @@ public sealed class AppSettings
 
     public bool StartInFullscreen { get; set; }
 
+    /// <summary>Folder with the recordings of all cameras (e.g. \truenas\cameras) – one sub folder per camera.</summary>
+    public string? RecordingsRoot { get; set; }
+
     /// <summary>Audio volume 0..1 and mute state (the audible camera itself is not restored – start silent).</summary>
     public double AudioVolume { get; set; } = 0.8;
     public bool AudioMuted { get; set; }

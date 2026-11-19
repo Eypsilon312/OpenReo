@@ -1,4 +1,4 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using OpenReo.App.Services;
@@ -94,6 +94,7 @@ public partial class App : Application
             ("CameraDialog (bearbeiten)", () => new Dialogs.CameraDialog(cam, RtspTransport.Tcp, new[] { cam })),
             ("DiscoveryDialog", () => new Dialogs.DiscoveryDialog(_services!.Cameras, new AppSettings())),
             ("SettingsDialog", () => new Dialogs.SettingsDialog(new AppSettings())),
+            ("RecordingsDialog", () => new Dialogs.RecordingsDialog(new AppSettings(), _services!.Cameras.Cameras)),
             ("LayoutEditorDialog", () => new Dialogs.LayoutEditorDialog(new Core.Layouts.LayoutManager(new AppConfiguration()))),
         };
         foreach (var (name, create) in factories)

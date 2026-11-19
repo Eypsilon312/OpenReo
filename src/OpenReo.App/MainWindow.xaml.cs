@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
@@ -340,6 +340,53 @@ public partial class MainWindow : Window, IViewerActions
         MuteButton.ToolTip = _svc.Audio.Player.Muted ? Lang.T("Ton einschalten") : Lang.T("Ton stumm schalten");
     }
 
+    private readonly Dictionary<Guid, Playback.PlaybackWindow> _playbackWindows = new();
+
+    // ---------------------------------------------------------------- recordings / playback
+
+    private void OnPlaybackMenuClick(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = PlaybackButton, Placement = PlacementMode.Bottom };
+        var assigned = _cameras.Where(c => c.Config.ResolveRecordingFolder(_svc.Settings.RecordingsRoot) != null).ToList();
+        foreach (var vm in assigned)
+        {
+            var cam = vm;
+            menu.Items.Add(MenuItem(cam.Name, () => OpenPlayback(cam)));
+        }
+        if (assigned.Count == 0)
+            menu.Items.Add(new MenuItem { Header = Lang.T("(noch keine Aufnahme-Ordner zugeordnet)"), IsEnabled = false });
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuItem(Lang.T("Aufnahme-Ordner zuordnen …"), () => OpenRecordingsDialog()));
+        menu.IsOpen = true;
+    }
+
+    private bool OpenRecordingsDialog()
+    {
+        var dlg = new RecordingsDialog(_svc.Settings, _svc.Cameras.Cameras) { Owner = this };
+        if (dlg.ShowDialog() != true) return false;
+        _svc.RequestSave();
+        return true;
+    }
+
+    /// <summary>Opens the playback window of a camera (assigns the recording folder first if necessary).</summary>
+    public void OpenPlayback(CameraViewModel camera)
+    {
+        if (_playbackWindows.TryGetValue(camera.Id, out var existing)) { existing.Activate(); return; }
+        var folder = camera.Config.ResolveRecordingFolder(_svc.Settings.RecordingsRoot);
+        if (folder == null)
+        {
+            MessageBox.Show(this, Lang.F("Für „{0}“ ist noch kein Aufnahme-Ordner zugeordnet. Bitte den Ordner mit den Aufnahmen (z. B. auf dem NAS) wählen und der Kamera zuordnen.", camera.Name),
+                Lang.T("Wiedergabe"), MessageBoxButton.OK, MessageBoxImage.Information);
+            if (!OpenRecordingsDialog()) return;
+            folder = camera.Config.ResolveRecordingFolder(_svc.Settings.RecordingsRoot);
+            if (folder == null) return;
+        }
+        var win = new Playback.PlaybackWindow(camera.Config, folder, _svc.Settings) { Owner = this };
+        _playbackWindows[camera.Id] = win;
+        win.Closed += (_, _) => _playbackWindows.Remove(camera.Id);
+        win.Show();
+    }
+
     private readonly Dictionary<Guid, CameraSettings.CameraSettingsWindow> _settingsWindows = new();
 
     /// <summary>Opens the camera settings (Reolink API) – non modal, so the live image stays visible.</summary>
@@ -475,6 +522,7 @@ public partial class MainWindow : Window, IViewerActions
             foreach (var s in _svc.Streams.Streams.Where(s => s.CameraId == vm.Id)) s.Reconnect();
         }));
         menu.Items.Add(new Separator());
+        menu.Items.Add(MenuItem(Lang.T("Wiedergabe (Aufnahmen) …"), () => OpenPlayback(vm)));
         menu.Items.Add(MenuItem(Lang.T("Kameraeinstellungen …"), () => OpenCameraSettings(vm)));
         menu.Items.Add(MenuItem(Lang.T("Weboberfläche öffnen"), () => OpenWebUi(vm)));
         menu.Items.Add(MenuItem(Lang.T("Verbindung bearbeiten …"), () => EditCamera(vm)));

@@ -11,7 +11,7 @@ namespace OpenReo.App.CameraSettings;
 /// Weekly schedule editor (7 days x 24 hours).
 ///
 /// Reolink stores a schedule as a string of 168 characters, one per hour. Two formats exist:
-/// - Older firmware: one string; each character is a MODE: '0' off, '1' timer (continuous),
+/// - Older firmware: one string; each character is a MODE: '0' off, '1' motion/alarm (blue in the Reolink app),
 ///   '2' motion/alarm (orange in the Reolink app). Recording and FTP use all three, e-mail/push use 0/1.
 /// - Newer firmware (V20): one 0/1 string per trigger (MD, TIMING, AI_PEOPLE ...).
 /// Unknown characters are preserved – only the cells the user paints are changed.
@@ -27,8 +27,9 @@ public sealed class ScheduleGrid : StackPanel
     };
 
     private static readonly Brush OffBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x39, 0x46));
-    private static readonly Brush TimerBrush = new SolidColorBrush(Color.FromRgb(0x2F, 0x8C, 0xFF));
-    private static readonly Brush MotionBrush = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+    // Colors as in the Reolink app: motion = blue, timer (continuous) = orange.
+    private static readonly Brush MotionBrush = new SolidColorBrush(Color.FromRgb(0x2F, 0x8C, 0xFF));
+    private static readonly Brush TimerBrush = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
     private static readonly Brush OtherBrush = new SolidColorBrush(Color.FromRgb(0xA8, 0x55, 0xF7));
 
     private readonly SettingsSection _section;
@@ -77,7 +78,7 @@ public sealed class ScheduleGrid : StackPanel
             // Start with the first trigger that actually has active hours.
             int first = keys.FindIndex(k => (JsonUtil.AsString(triggers[k]) ?? "").Any(c => c != '0'));
             combo.SelectedIndex = Math.Max(0, first);
-            AddLegend(("An", TimerBrush), ("Aus", OffBrush));
+            AddLegend(("An", MotionBrush), ("Aus", OffBrush));
         }
         else if (IsSchedule(node))
         {
@@ -86,13 +87,14 @@ public sealed class ScheduleGrid : StackPanel
                              || (JsonUtil.AsString(node) ?? "").Contains('2');
             if (withModes)
             {
-                SetModes(('2', Lang.T("Bewegung (Alarm)")), ('1', Lang.T("Dauerhaft (Timer)")));
-                AddLegend(("Bewegung", MotionBrush), ("Dauerhaft", TimerBrush), ("Aus", OffBrush));
+                // '2' = timer (continuous, orange), '1' = motion/alarm (blue) – as in the Reolink app.
+                SetModes(('2', Lang.T("Dauerhaft (Timer)")), ('1', Lang.T("Bewegung (Alarm)")));
+                AddLegend(("Dauerhaft (Timer)", TimerBrush), ("Bewegung (Alarm)", MotionBrush), ("Aus", OffBrush));
             }
             else
             {
                 SetModes(('1', "An"));
-                AddLegend(("An", TimerBrush), ("Aus", OffBrush));
+                AddLegend(("An", MotionBrush), ("Aus", OffBrush));
             }
             BuildGrid();
             Load();
@@ -123,7 +125,7 @@ public sealed class ScheduleGrid : StackPanel
     private void SetModes(params (char Value, string Label)[] modes)
     {
         foreach (var (value, label) in modes)
-            _modeBox.Items.Add(new ComboBoxItem { Content = label, Tag = value });
+            _modeBox.Items.Add(new ComboBoxItem { Content = Lang.T(label), Tag = value });
         _modeBox.SelectedIndex = 0;
     }
 
@@ -135,7 +137,7 @@ public sealed class ScheduleGrid : StackPanel
         foreach (var (label, brush) in items)
         {
             legend.Children.Add(new Border { Width = 12, Height = 12, CornerRadius = new CornerRadius(2), Background = brush, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center });
-            legend.Children.Add(new TextBlock { Text = label, FontSize = 11.5, Margin = new Thickness(0, 0, 14, 0), Style = (Style)Application.Current.Resources["DimText"] });
+            legend.Children.Add(new TextBlock { Text = Lang.T(label), FontSize = 11.5, Margin = new Thickness(0, 0, 14, 0), Style = (Style)Application.Current.Resources["DimText"] });
         }
         Children.Add(legend);
     }
@@ -161,8 +163,8 @@ public sealed class ScheduleGrid : StackPanel
     private static Brush BrushFor(char c) => c switch
     {
         '0' => OffBrush,
-        '1' => TimerBrush,
-        '2' => MotionBrush,
+        '1' => MotionBrush,
+        '2' => TimerBrush,
         _ => OtherBrush,
     };
 

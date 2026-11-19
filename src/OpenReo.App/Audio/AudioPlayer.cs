@@ -9,9 +9,10 @@ namespace OpenReo.App.Audio;
 /// The buffer is kept short: if the camera clock runs faster than the sound card, the
 /// backlog is dropped instead of letting the delay grow.
 /// </summary>
-public sealed class AudioPlayer : IAudioSink, IDisposable
+public sealed class AudioPlayer : IAudioSink, IAudioOutput, IDisposable
 {
-    private static readonly TimeSpan MaxBacklog = TimeSpan.FromMilliseconds(400);
+    /// <summary>Backlog above which buffered audio is dropped (live: 400 ms; playback is paced and may use more).</summary>
+    public TimeSpan MaxBacklog { get; set; } = TimeSpan.FromMilliseconds(400);
 
     private readonly BufferedWaveProvider _buffer;
     private readonly VolumeWaveProvider16 _volume;
@@ -19,6 +20,14 @@ public sealed class AudioPlayer : IAudioSink, IDisposable
     private bool _playing;
     private float _level = 0.8f;
     private bool _muted;
+
+    private const int DeviceLatencyMs = 120;
+
+    /// <summary>Delay of the sound card output (WaveOut buffers).</summary>
+    public TimeSpan OutputLatency => TimeSpan.FromMilliseconds(DeviceLatencyMs);
+
+    /// <summary>Drops buffered audio that has not been played yet (after a seek / resync).</summary>
+    public void Flush() => _buffer.ClearBuffer();
 
     /// <summary>False if no audio output device could be opened.</summary>
     public bool IsAvailable { get; private set; } = true;
@@ -81,7 +90,7 @@ public sealed class AudioPlayer : IAudioSink, IDisposable
 
     private WaveOutEvent CreateOutput()
     {
-        var o = new WaveOutEvent { DesiredLatency = 120, NumberOfBuffers = 3 };
+        var o = new WaveOutEvent { DesiredLatency = DeviceLatencyMs, NumberOfBuffers = 3 };
         o.Init(_volume);
         return o;
     }
