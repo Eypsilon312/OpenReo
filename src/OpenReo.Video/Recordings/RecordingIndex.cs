@@ -20,10 +20,25 @@ public sealed class RecordingFile
     /// <summary>Estimated duration until the real one is known (gap to the next file, max. 1 h).</summary>
     public TimeSpan EstimatedDuration { get; set; } = TimeSpan.FromMinutes(1);
 
+    /// <summary>
+    /// The estimate comes from the file time: the camera writes the file while recording, so the
+    /// last write is the end of the recording (accurate to about a second, no need to read the file).
+    /// </summary>
+    public bool EstimateFromFileTime { get; set; }
+
+    /// <summary>Length is known well enough for the time line.</summary>
+    public bool HasReliableDuration => Duration != null || EstimateFromFileTime;
+
     public TimeSpan EffectiveDuration => Duration ?? EstimatedDuration;
     public DateTime End => Start + EffectiveDuration;
     public string FileName => System.IO.Path.GetFileName(Path);
 }
+
+/// <summary>
+/// Picture the camera uploads together with the recordings (Reolink: one snapshot when a motion /
+/// alarm recording starts). Shown as event marker with preview on the time line.
+/// </summary>
+public sealed record RecordingSnapshot(string Path, DateTime Time);
 
 /// <summary>
 /// Reads the start time of a recording from its file name or path. Supports the usual Reolink
@@ -66,49 +81,74 @@ public static class RecordingTimeParser
 public sealed class RecordingIndex
 {
     private static readonly string[] Extensions = { ".mp4", ".mkv", ".mov", ".avi", ".ts", ".flv" };
+    private static readonly string[] PictureExtensions = { ".jpg", ".jpeg" };
 
     public string Folder { get; }
     public IReadOnlyList<RecordingFile> Files { get; }
 
-    private RecordingIndex(string folder, List<RecordingFile> files)
+    /// <summary>Snapshots uploaded by the camera (event markers), sorted by time.</summary>
+    public IReadOnlyList<RecordingSnapshot> Snapshots { get; }
+
+    private RecordingIndex(string folder, List<RecordingFile> files, List<RecordingSnapshot> snapshots)
     {
         Folder = folder;
         Files = files;
+        Snapshots = snapshots;
     }
 
     public static Task<RecordingIndex> ScanAsync(string folder, CancellationToken ct = default) => Task.Run(() =>
     {
         var files = new List<RecordingFile>();
+        var snapshots = new List<RecordingSnapshot>();
         var cache = DurationCache.Load();
-        foreach (var path in Directory.EnumerateFiles(folder, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
+        // DirectoryInfo delivers size and time stamps from the directory listing itself – no extra
+        // request per file (new FileInfo(path) costs one SMB round trip each: 8 s instead of 1 s for 7000 files).
+        foreach (var info in new DirectoryInfo(folder).EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
         {
             ct.ThrowIfCancellationRequested();
-            if (!Extensions.Contains(System.IO.Path.GetExtension(path), StringComparer.OrdinalIgnoreCase)) continue;
-            var info = new FileInfo(path);
+            var ext = info.Extension;
+            bool video = Extensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
+            if (!video && !PictureExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase)) continue;
             if (info.Length < 1024) continue; // incomplete uploads
-            var start = RecordingTimeParser.Parse(System.IO.Path.GetRelativePath(folder, path));
-            var file = new RecordingFile
+            var start = RecordingTimeParser.Parse(System.IO.Path.GetRelativePath(folder, info.FullName));
+            if (!video)
             {
-                Path = path,
+                snapshots.Add(new RecordingSnapshot(info.FullName, start ?? info.LastWriteTime));
+                continue;
+            }
+            files.Add(new RecordingFile
+            {
+                Path = info.FullName,
                 Start = start ?? info.LastWriteTime,
                 Size = info.Length,
                 LastWrite = info.LastWriteTime,
-                Duration = cache.TryGet(path, info.Length, info.LastWriteTimeUtc),
-            };
-            files.Add(file);
+                Duration = cache.TryGet(info.FullName, info.Length, info.LastWriteTimeUtc),
+            });
         }
         files.Sort((a, b) => a.Start.CompareTo(b.Start));
+        snapshots.Sort((a, b) => a.Time.CompareTo(b.Time));
         for (int i = 0; i < files.Count; i++)
         {
-            var gap = i + 1 < files.Count ? files[i + 1].Start - files[i].Start : TimeSpan.FromMinutes(1);
-            files[i].EstimatedDuration = gap > TimeSpan.Zero && gap < TimeSpan.FromHours(1) ? gap : TimeSpan.FromMinutes(1);
+            var f = files[i];
+            var gap = i + 1 < files.Count ? files[i + 1].Start - f.Start : (TimeSpan?)null;
+            // the camera writes while recording → last write ≈ end of the recording
+            var byFileTime = f.LastWrite - f.Start;
+            if (byFileTime > TimeSpan.FromSeconds(1) && byFileTime < TimeSpan.FromHours(2) && (gap == null || byFileTime <= gap.Value + TimeSpan.FromSeconds(10)))
+            {
+                f.EstimatedDuration = gap is { } g && byFileTime > g ? g : byFileTime;
+                f.EstimateFromFileTime = true;
+            }
+            else f.EstimatedDuration = gap is { } g && g > TimeSpan.Zero && g < TimeSpan.FromHours(1) ? g : TimeSpan.FromMinutes(1);
         }
-        Log.Info($"Recording index {folder}: {files.Count} file(s)");
-        return new RecordingIndex(folder, files);
+        Log.Info($"Recording index {folder}: {files.Count} file(s), {snapshots.Count} snapshot(s)");
+        return new RecordingIndex(folder, files, snapshots);
     }, ct);
 
     /// <summary>Days with recordings, newest first.</summary>
     public IReadOnlyList<DateTime> Days => Files.Select(f => f.Start.Date).Distinct().OrderByDescending(d => d).ToList();
+
+    public IReadOnlyList<RecordingSnapshot> SnapshotsOn(DateTime day) =>
+        Snapshots.Where(s => s.Time.Date == day.Date).ToList();
 
     public IReadOnlyList<RecordingFile> FilesOn(DateTime day) =>
         Files.Where(f => f.Start.Date == day.Date || (f.Start < day.Date && f.End > day.Date)).ToList();
@@ -138,21 +178,29 @@ public sealed class RecordingIndex
     }
 
     /// <summary>Reads the exact durations of the given files (background) and caches them.</summary>
-    public static Task LoadDurationsAsync(IEnumerable<RecordingFile> files, IProgress<RecordingFile>? progress, CancellationToken ct) => Task.Run(() =>
+    /// <remarks>
+    /// Files whose length is already known from the file time are skipped; the others are read
+    /// a few at a time in parallel (the NAS answers several requests at once much faster).
+    /// </remarks>
+    public static Task LoadDurationsAsync(IEnumerable<RecordingFile> files, IProgress<RecordingFile>? progress, CancellationToken ct) => Task.Run(async () =>
     {
+        var todo = files.Where(f => !f.HasReliableDuration).ToList();
+        if (todo.Count == 0) return;
         var cache = DurationCache.Load();
-        bool changed = false;
-        foreach (var f in files.Where(f => f.Duration == null).ToList())
+        int changed = 0;
+        await Parallel.ForEachAsync(todo, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, (f, token) =>
         {
-            ct.ThrowIfCancellationRequested();
             var d = MediaInfo.ProbeDuration(f.Path);
-            if (d == null) continue;
-            f.Duration = d;
-            cache.Set(f.Path, f.Size, f.LastWrite.ToUniversalTime(), d.Value);
-            changed = true;
-            progress?.Report(f);
-        }
-        if (changed) cache.Save();
+            if (d != null)
+            {
+                f.Duration = d;
+                lock (cache) cache.Set(f.Path, f.Size, f.LastWrite.ToUniversalTime(), d.Value);
+                Interlocked.Increment(ref changed);
+                progress?.Report(f);
+            }
+            return ValueTask.CompletedTask;
+        });
+        if (changed > 0) cache.Save();
     }, ct);
 }
 
@@ -182,6 +230,12 @@ public static unsafe class MediaInfo
 {
     public static TimeSpan? ProbeDuration(string path)
     {
+        // fragmented MP4 (Reolink uploads): a few reads instead of FFmpeg reading every fragment header
+        if (FragmentedMp4.TryOpen(path) is { } fmp4)
+        {
+            try { return TimeSpan.FromSeconds(fmp4.Duration); }
+            catch (Exception ex) { Log.Debug($"fMP4 duration of {path}: {ex.Message}"); }
+        }
         FFmpegLoader.Initialize();
         AVFormatContext* fmt = null;
         try

@@ -224,7 +224,10 @@ public partial class VideoTile : UserControl
             InfoText.Text = st.Width > 0
                 ? $"{st.Codec} {st.Width}×{st.Height} · {st.Fps:0} fps · {st.BitrateKbps / 1000:0.0} Mbit/s · {(st.IsHardware ? "GPU" : "CPU")}"
                 : "";
-            InfoText.ToolTip = st.Width > 0 ? Lang.F("Decoder: {0}\nAnzeige: {1}×{2}\nFrames: {3}, Fehler: {4}", st.Decoder, st.OutputWidth, st.OutputHeight, st.FramesDecoded, st.DecodeErrors) : null;
+            InfoText.ToolTip = st.Width > 0
+                ? Lang.F("Decoder: {0}\nAnzeige: {1}×{2}\nFrames: {3}, Fehler: {4}", st.Decoder, st.OutputWidth, st.OutputHeight, st.FramesDecoded, st.DecodeErrors)
+                  + (st.BufferMs > 0 ? "\n" + Lang.F("Ausgleichspuffer: {0:0} ms", st.BufferMs) : "")
+                : null;
         }
         ZoomText.Visibility = _zoom > 1.001 ? Visibility.Visible : Visibility.Collapsed;
         ZoomText.Text = $"{_zoom:0.0}×";

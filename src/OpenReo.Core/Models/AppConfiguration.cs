@@ -9,6 +9,12 @@ public sealed class AppSettings
     public HardwareAccelerationMode HardwareAcceleration { get; set; } = HardwareAccelerationMode.Auto;
     public RtspTransport Transport { get; set; } = RtspTransport.Tcp;
 
+    /// <summary>
+    /// Maximum delay of the adaptive de-jitter buffer for live streams in ms (0 = off: show frames on
+    /// arrival, lowest latency). The buffer only grows as far as the measured delivery jitter requires.
+    /// </summary>
+    public int LiveBufferMaxMs { get; set; } = 1500;
+
     /// <summary>Minimal buffering for lowest latency.</summary>
     public bool LowLatency { get; set; } = true;
 

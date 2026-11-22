@@ -62,6 +62,8 @@ internal static class Program
     private static int Main(string[] args)
     {
         if (args.Length >= 2 && args[0] == "--diag-playback") return DiagPlayback(args[1]);
+        if (args.Length >= 2 && args[0] == "--diag-smooth") return DiagSmooth(int.Parse(args[1]));
+        if (args.Length >= 1 && args[0] == "--diag-live") return DiagLive(args.Length > 1 ? Enum.Parse<StreamQuality>(args[1], true) : null, args.Contains("flv"));
         OpenReo.Core.Localization.Lang.Initialize("de"); // the checks below use the German texts
         string? shots = args.Length > 0 ? args[0] : null;
         if (shots != null) Directory.CreateDirectory(shots);
@@ -228,6 +230,16 @@ internal static class Program
             var audioCam = new CameraConfig { Name = "Ton-Test", Username = "", ClearPath = args[1], MidPath = args[1], LowPath = args[1], Quality = StreamQuality.Mid };
             var lease = streams.Acquire(audioCam, StreamQuality.Mid);
             lease.SetTargetSize(640, 360);
+            // reconnect / option change must recover (regression: abort flag of the previous session)
+            Check(WaitUntil(() => lease.Stream.Status == StreamStatus.Playing, 8000), "Live: Stream läuft");
+            lease.Stream.Reconnect();
+            Thread.Sleep(300);
+            Check(WaitUntil(() => lease.Stream.Status == StreamStatus.Playing && lease.Stream.Statistics.Fps > 5, 10000),
+                $"Live: nach erzwungener Neuverbindung wieder aktiv ({lease.Stream.Status}, {lease.Stream.LastError})");
+            streams.UpdateOptions(streams.Options with { LiveBufferMaxMs = 1000 }, id => id == audioCam.Id ? audioCam : null);
+            Thread.Sleep(300);
+            Check(WaitUntil(() => lease.Stream.Status == StreamStatus.Playing && lease.Stream.Statistics.Fps > 5, 10000),
+                $"Live: nach Einschalten des Ausgleichspuffers wieder aktiv ({lease.Stream.Status}, {lease.Stream.LastError})");
             using var audio = new OpenReo.App.Audio.AudioController(streams);
             audio.Player.Muted = true; // test silently
             audio.SetCamera(audioCam.Id);
@@ -368,6 +380,46 @@ internal static class Program
         }
         var (lead, gap, secs, span) = sink.Analyze();
         Console.WriteLine($"audio: {secs:0.0} s in {span:0.0} s, max gap {gap:0} ms, max lead {lead:0.00} s, error={ps.Error}");
+        return 0;
+    }
+
+    /// <summary>Diagnostics: measures frame delivery of all configured cameras (current quality) for 10 s each.</summary>
+    private static int DiagLive(StreamQuality? quality, bool flv)
+    {
+        var cfg = new OpenReo.Core.Configuration.ConfigurationManager().Load();
+        foreach (var cam in cfg.Cameras)
+        {
+            var q = quality ?? cam.Quality;
+            var url = flv ? OpenReo.Core.Cameras.RtspUrlBuilder.ReolinkFlv(cam, q) : OpenReo.Core.Cameras.RtspUrlBuilder.Build(cam, q);
+            var r = OpenReo.Video.StreamDiagnostics.Measure(url, cfg.Settings.Transport, 10);
+            Console.WriteLine($"{cam.Name} [{q}] {(flv ? "HTTP-FLV" : "RTSP")}: {r}");
+        }
+        return 0;
+    }
+
+    /// <summary>Diagnostics: frames as the tile receives them (with the given jitter buffer) – per second fps and longest freeze.</summary>
+    private static int DiagSmooth(int bufferMs)
+    {
+        var cfg = new OpenReo.Core.Configuration.ConfigurationManager().Load();
+        OpenReo.Video.FFmpegLoader.Initialize();
+        var opt = OpenReo.Video.StreamOptions.From(cfg.Settings) with { LiveBufferMaxMs = bufferMs };
+        using var manager = new OpenReo.Video.StreamManager(opt, TimeSpan.Zero);
+        foreach (var cam in cfg.Cameras)
+        {
+            var lease = manager.Acquire(cam, cam.Quality);
+            lease.SetTargetSize(1280, 960);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var shown = new List<double>();
+            while (sw.Elapsed.TotalSeconds < 17)
+            {
+                if (lease.Stream.Frames.TryAcquireLatest(out _) && sw.Elapsed.TotalSeconds > 2) shown.Add(sw.Elapsed.TotalMilliseconds);
+                Thread.Sleep(2);
+            }
+            var gaps = shown.Zip(shown.Skip(1), (a, b) => b - a).ToList();
+            var perSecond = shown.GroupBy(t => (int)(t / 1000)).Select(g => g.Count()).ToList();
+            Console.WriteLine($"{cam.Name} [{cam.Quality}] Puffer max {bufferMs} ms (aktuell {lease.Stream.Statistics.BufferMs:0} ms): fps je Sekunde {perSecond.Min()}–{perSecond.Max()}, längstes Standbild {gaps.Max():0} ms, Standbilder > 150 ms: {gaps.Count(g => g > 150)}");
+            lease.Release(true);
+        }
         return 0;
     }
 

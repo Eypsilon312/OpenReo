@@ -536,6 +536,7 @@ public static class Translations
         ["Der Ordner enthält keine Unterordner."] = "The folder contains no sub folders.",
         ["Durchsuchen …"] = "Browse …",
         ["Ende der Aufnahmen."] = "End of recordings.",
+        ["Ereignis {0}"] = "Event {0}",
         ["Für „{0}“ ist noch kein Aufnahme-Ordner zugeordnet. Bitte den Ordner mit den Aufnahmen (z. B. auf dem NAS) wählen und der Kamera zuordnen."] = "No recording folder is assigned to “{0}” yet. Please choose the folder with the recordings (e.g. on the NAS) and assign it to the camera.",
         ["Im Explorer zeigen"] = "Show in Explorer",
         ["KAMERA"] = "CAMERA",
@@ -563,6 +564,16 @@ public static class Translations
         ["Wiedergabe (Aufnahmen) …"] = "Playback (recordings) …",
         ["Wiedergabe – {0}"] = "Playback – {0}",
         ["{0} Ordner gefunden, {1} automatisch zugeordnet."] = "{0} folder(s) found, {1} assigned automatically.",
+
+        // ------------------------------------------------------------------ live buffer
+        ["Ausgleichspuffer im Live-Bild"] = "De-jitter buffer for live view",
+        ["Aus – minimale Verzögerung"] = "Off – minimal delay",
+        ["Automatisch, max. 0,5 s"] = "Automatic, max. 0.5 s",
+        ["Automatisch, max. 1 s"] = "Automatic, max. 1 s",
+        ["Automatisch, max. 1,5 s"] = "Automatic, max. 1.5 s",
+        ["Automatisch, max. 2 s"] = "Automatic, max. 2 s",
+        ["Gleicht stoßweise ankommende Bilder aus (z. B. WLAN) und spielt sie gleichmäßig ab – auf Kosten der Verzögerung. Bilder, die die Kamera gar nicht sendet, kann kein Puffer ersetzen."] = "Smooths out frames that arrive in bursts (e.g. Wi-Fi) and plays them evenly – at the cost of delay. No buffer can replace frames the camera does not send at all.",
+        ["Ausgleichspuffer: {0:0} ms"] = "De-jitter buffer: {0:0} ms",
 
         // ------------------------------------------------------------------ errors from video / ONVIF / Reolink API
         ["Zeitüberschreitung – Kamera nicht erreichbar"] = "Timeout – camera not reachable",

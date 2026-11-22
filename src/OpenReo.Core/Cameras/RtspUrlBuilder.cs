@@ -22,6 +22,21 @@ public static class RtspUrlBuilder
         return q == StreamQuality.Clear ? $"h264Preview_{ch}_main" : $"h264Preview_{ch}_sub";
     }
 
+    /// <summary>
+    /// Reolink HTTP-FLV stream (same transport the Reolink apps use internally – usually much more
+    /// even than Reolink's RTSP server). Requires the camera's HTTP(S) port; newer firmware needs RTMP enabled.
+    /// </summary>
+    public static string ReolinkFlv(CameraConfig cam, StreamQuality q, bool includeCredentials = true)
+    {
+        var host = cam.Host.Contains(':') && !cam.Host.StartsWith('[') ? $"[{cam.Host}]" : cam.Host;
+        var scheme = cam.HttpPort == 443 ? "https" : "http";
+        var port = cam.HttpPort is 80 or 443 ? "" : ":" + cam.HttpPort;
+        var stream = q switch { StreamQuality.Clear => "main", StreamQuality.Mid => "ext", _ => "sub" };
+        var pw = includeCredentials ? Uri.EscapeDataString(cam.Password ?? "") : "***";
+        return $"{scheme}://{host}{port}/flv?port=1935&app=bcs&stream=channel{Math.Max(0, cam.Channel - 1)}_{stream}.bcs" +
+               $"&user={Uri.EscapeDataString(cam.Username)}&password={pw}";
+    }
+
     /// <summary>Full URL including credentials – never log or display this.</summary>
     public static string Build(CameraConfig cam, StreamQuality q) => Build(cam, cam.GetPath(q), includeCredentials: true);
 

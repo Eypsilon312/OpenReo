@@ -34,6 +34,9 @@ OpenReo is a standalone Windows client (C# / .NET 8 / WPF) for live monitoring o
 - **Robustness**: connection failures only affect the camera concerned ("offline" with error message and
   countdown), automatic reconnect with exponential back-off. Streams are reused across layout changes
   (no reconnects).
+- **Smooth live picture**: an adaptive de-jitter buffer evens out frames that arrive in bursts (Wi-Fi,
+  camera busy uploading). It only grows as far as the measured jitter requires – by default up to 1.5 s
+  (settings → off / 0.5–2 s). The current delay is shown in the tooltip of the tile's info line.
 - **UI**: dark theme (including dark title bar), sidebar with status per camera, toolbar, status bar
   (active streams, GPU/CPU decoders, bitrate, CPU, RAM), fullscreen (F11), context menus.
 - **Camera settings** (Reolink HTTP API, right click → "Kameraeinstellungen …"): device name, status LED,
@@ -50,7 +53,11 @@ OpenReo is a standalone Windows client (C# / .NET 8 / WPF) for live monitoring o
   down to 5 min, drag to scroll, click to jump), frame accurate seeking, play/pause, ±10 s, 0.25×–16×, sound,
   seamless continuation into the next file, gaps are skipped, "save file as" / show in Explorer. Start times are
   read from the file names (`…_20261118143512.mp4`, `RecM01_20261118_143512_….mp4`, `2026/11/18/143512.mp4`)
-  or the file time stamp; durations are read once and cached.
+  or the file time stamp; durations come from the file time stamps (no need to open the files), so the time line
+  is complete immediately. Fragmented MP4 uploads (Reolink FTP) are opened directly at the requested fragment,
+  so opening and seeking over SMB takes well under a second instead of several seconds.
+  The JPG snapshots the camera uploads with each clip are shown as event markers on the time line (hover:
+  preview picture, click: jump to the event).
 - **Languages**: English and German, chosen automatically from the Windows display language or set manually
   (settings → language; applied after a restart). All texts are checked by `tools\check-translations.ps1`.
 - **Persistence**: cameras (passwords encrypted with Windows DPAPI), quality per camera and global,

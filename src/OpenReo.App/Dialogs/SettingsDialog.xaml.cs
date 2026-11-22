@@ -25,6 +25,8 @@ public partial class SettingsDialog : Window
         HwBox.SelectedIndex = (int)settings.HardwareAcceleration;
         TransportBox.SelectedIndex = (int)settings.Transport;
         LowLatencyBox.IsChecked = settings.LowLatency;
+        var bufferItem = LiveBufferBox.Items.OfType<ComboBoxItem>().OrderBy(i => Math.Abs(int.Parse((string)i.Tag) - settings.LiveBufferMaxMs)).First();
+        LiveBufferBox.SelectedItem = bufferItem;
         TimeoutBox.Text = settings.ConnectTimeoutSeconds.ToString();
         ReconnectBox.Text = settings.ReconnectMaxDelaySeconds.ToString();
         ReleaseBox.Text = settings.StreamReleaseDelaySeconds.ToString();
@@ -57,6 +59,7 @@ public partial class SettingsDialog : Window
         _settings.HardwareAcceleration = (HardwareAccelerationMode)Math.Max(0, HwBox.SelectedIndex);
         _settings.Transport = (RtspTransport)Math.Max(0, TransportBox.SelectedIndex);
         _settings.LowLatency = LowLatencyBox.IsChecked == true;
+        _settings.LiveBufferMaxMs = (LiveBufferBox.SelectedItem as ComboBoxItem)?.Tag is string b ? int.Parse(b) : 0;
         _settings.ConnectTimeoutSeconds = timeout;
         _settings.ReconnectMaxDelaySeconds = reconnect;
         _settings.StreamReleaseDelaySeconds = release;

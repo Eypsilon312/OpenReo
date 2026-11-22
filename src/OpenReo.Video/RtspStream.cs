@@ -11,10 +11,11 @@ public sealed record StreamOptions(
     RtspTransport Transport,
     bool LowLatency,
     int ConnectTimeoutSeconds,
-    int ReconnectMaxDelaySeconds)
+    int ReconnectMaxDelaySeconds,
+    int LiveBufferMaxMs = 0)
 {
     public static StreamOptions From(AppSettings s) =>
-        new(s.HardwareAcceleration, s.Transport, s.LowLatency, s.ConnectTimeoutSeconds, s.ReconnectMaxDelaySeconds);
+        new(s.HardwareAcceleration, s.Transport, s.LowLatency, s.ConnectTimeoutSeconds, s.ReconnectMaxDelaySeconds, s.LiveBufferMaxMs);
 }
 
 /// <summary>Snapshot of stream statistics (immutable, replaced once per second).</summary>
@@ -29,7 +30,8 @@ public sealed record StreamStatistics(
     int OutputWidth,
     int OutputHeight,
     long FramesDecoded,
-    long DecodeErrors)
+    long DecodeErrors,
+    double BufferMs = 0)
 {
     public static readonly StreamStatistics Empty = new("", 0, 0, 0, 0, "", false, 0, 0, 0, 0);
 }
@@ -57,6 +59,7 @@ public sealed unsafe class RtspStream : IDisposable
     private long _activityTick;
     private long _timeoutMs;
     private volatile bool _timedOut;
+    private volatile bool _sessionAbort;
 
     private volatile int _targetW, _targetH;
     private long _lastConvertTick;
@@ -203,7 +206,7 @@ public sealed unsafe class RtspStream : IDisposable
 
     private int OnInterrupt(void* opaque)
     {
-        if (_stopRequested || _restartRequested) return 1;
+        if (_stopRequested || _restartRequested || _sessionAbort) return 1;
         if (Environment.TickCount64 - Interlocked.Read(ref _activityTick) > Interlocked.Read(ref _timeoutMs))
         {
             _timedOut = true;
@@ -262,11 +265,12 @@ public sealed unsafe class RtspStream : IDisposable
     private bool Session()
     {
         AVFormatContext* fmt = null;
-        AVPacket* pkt = null;
         AVFrame* frame = null;
         VideoDecoder? decoder = null;
         FrameConverter? converter = null;
         AudioDecoder? audio = null;
+        Thread? reader = null;
+        LivePacketQueue? queue = null;
         bool hadFrames = false;
         string url;
         StreamOptions opt;
@@ -276,6 +280,9 @@ public sealed unsafe class RtspStream : IDisposable
         {
             long connectTimeoutMs = opt.ConnectTimeoutSeconds * 1000L;
             _timedOut = false;
+            // reset the abort flag of the previous session – otherwise every reconnect would be
+            // interrupted immediately ("Immediate exit requested")
+            _sessionAbort = false;
             Touch(connectTimeoutMs);
 
             fmt = ffmpeg.avformat_alloc_context();
@@ -321,7 +328,6 @@ public sealed unsafe class RtspStream : IDisposable
             converter = new FrameConverter(decoder.IsHardware ? decoder.HwType : AVHWDeviceType.AV_HWDEVICE_TYPE_NONE);
             Log.Info($"Stream {Name} [{Quality}] opened: {decoder.CodecName} {stream->codecpar->width}x{stream->codecpar->height}, decoder {decoder.DecoderDescription}");
 
-            pkt = ffmpeg.av_packet_alloc();
             frame = ffmpeg.av_frame_alloc();
 
             long frames = 0, errors = 0, bytes = 0, framesInWindow = 0;
@@ -329,46 +335,69 @@ public sealed unsafe class RtspStream : IDisposable
             int consecutiveErrors = 0;
             long readTimeoutMs = Math.Max(5000, connectTimeoutMs);
 
-            // Local files (diagnostics / benchmark) are played at their real frame rate.
+            // Local files (diagnostics / benchmark) are played at their real frame rate and need no jitter buffer.
             bool pace = Path.IsPathFullyQualified(url) || url.StartsWith("file:", StringComparison.OrdinalIgnoreCase);
-            double timeBase = ffmpeg.av_q2d(stream->time_base);
-            long paceStartTick = 0;
-            double paceStartPts = double.NaN;
+            var jitter = new JitterBuffer(pace ? 0 : opt.LiveBufferMaxMs);
+
+            // Reader thread: takes packets off the network as soon as they arrive; this loop decodes
+            // them on schedule (time stamp + jitter delay) so bursty delivery is smoothed out.
+            queue = new LivePacketQueue();
+            _sessionAbort = false;
+            var q = queue;
+            IntPtr fmtPtr = (IntPtr)fmt;
+            reader = new Thread(() => ReaderLoop(fmtPtr, videoIndex, audioIndex, q, jitter, pace, readTimeoutMs))
+            {
+                IsBackground = true,
+                Name = $"RTSP reader {Name} [{Quality}]",
+            };
+            reader.Start();
 
             while (!_stopRequested && !_restartRequested)
             {
-                Touch(readTimeoutMs);
-                ret = ffmpeg.av_read_frame(fmt, pkt);
-                if (pace && ret >= 0 && pkt->stream_index == videoIndex && pkt->pts != ffmpeg.AV_NOPTS_VALUE)
+                // Video is scheduled by its decode time stamp, audio by arrival + the same delay
+                // (separate queues: a packet of one kind can never hold up the other).
+                long now = Environment.TickCount64;
+                bool hasVideo = queue.TryPeek(true, out var v);
+                bool hasAudio = queue.TryPeek(false, out var a);
+                if (!hasVideo && !hasAudio)
                 {
-                    double pts = pkt->pts * timeBase;
-                    if (double.IsNaN(paceStartPts)) { paceStartPts = pts; paceStartTick = Environment.TickCount64; }
-                    long wait = (long)((pts - paceStartPts) * 1000) - (Environment.TickCount64 - paceStartTick);
-                    if (wait > 0) _wake.Wait((int)Math.Min(wait, 1000));
-                }
-                if (ret == ffmpeg.AVERROR(ffmpeg.EAGAIN)) continue;
-                if (ret < 0)
-                {
-                    if (_stopRequested || _restartRequested) break;
-                    throw new FFmpegException(FFmpegHelper.FriendlyError(ret, _timedOut), ret);
-                }
-
-                if (pkt->stream_index != videoIndex)
-                {
-                    if (pkt->stream_index == audioIndex) HandleAudio(fmt->streams[audioIndex], pkt, ref audio);
-                    ffmpeg.av_packet_unref(pkt);
+                    if (queue.Error != null) throw queue.Error;
+                    if (queue.Completed) break;
+                    queue.Wait(20);
                     continue;
                 }
-
-                bytes += pkt->size;
-                ret = decoder.Send(pkt);
-                ffmpeg.av_packet_unref(pkt);
-                if (ret < 0 && ret != ffmpeg.AVERROR(ffmpeg.EAGAIN))
+                long dueVideo = hasVideo ? (queue.Count > 600 ? now : jitter.DueTick(v.PtsMs, now)) : long.MaxValue;
+                long dueAudio = hasAudio ? (jitter.Enabled ? a.Arrival + (long)jitter.DelayMs : now) : long.MaxValue;
+                bool takeVideo = dueVideo <= dueAudio;
+                long due = Math.Min(dueVideo, dueAudio);
+                if (due > now + 2)
                 {
-                    errors++;
-                    consecutiveErrors++;
-                    if (consecutiveErrors > 300)
-                        throw new FFmpegException(Lang.T("Zu viele Decoder-Fehler – Stream wird neu aufgebaut."));
+                    queue.Wait((int)Math.Min(due - now, 20));
+                    continue;
+                }
+                queue.TryDequeue(takeVideo, out var entry);
+                var p = (AVPacket*)entry.Packet;
+                try
+                {
+                    if (!entry.Video)
+                    {
+                        if (audioIndex >= 0) HandleAudio(fmt->streams[audioIndex], p, ref audio);
+                        continue;
+                    }
+
+                    bytes += entry.Size;
+                    ret = decoder.Send(p);
+                    if (ret < 0 && ret != ffmpeg.AVERROR(ffmpeg.EAGAIN))
+                    {
+                        errors++;
+                        consecutiveErrors++;
+                        if (consecutiveErrors > 300)
+                            throw new FFmpegException(Lang.T("Zu viele Decoder-Fehler – Stream wird neu aufgebaut."));
+                    }
+                }
+                finally
+                {
+                    LivePacketQueue.Free(entry);
                 }
 
                 while (decoder.Receive(frame) == 0)
@@ -385,7 +414,7 @@ public sealed unsafe class RtspStream : IDisposable
                     ffmpeg.av_frame_unref(frame);
                 }
 
-                var now = Environment.TickCount64;
+                now = Environment.TickCount64;
                 if (now - windowStart >= 1000)
                 {
                     double secs = (now - windowStart) / 1000.0;
@@ -398,7 +427,8 @@ public sealed unsafe class RtspStream : IDisposable
                         decoder.DecoderDescription + (decoder.IsHardware && converter.UsesGpuScaling ? Lang.T(" + GPU-Skalierung") : ""),
                         decoder.IsHardware,
                         outW, outH,
-                        frames, errors);
+                        frames, errors,
+                        jitter.DelayMs);
                     windowStart = now;
                     framesInWindow = 0;
                     bytes = 0;
@@ -407,8 +437,11 @@ public sealed unsafe class RtspStream : IDisposable
         }
         finally
         {
+            // stop the reader before the format context is closed
+            _sessionAbort = true;
+            if (reader != null && !reader.Join(5000)) Log.Warn($"Reader of {Name} [{Quality}] did not stop in time");
+            queue?.Dispose();
             if (frame != null) ffmpeg.av_frame_free(&frame);
-            if (pkt != null) ffmpeg.av_packet_free(&pkt);
             converter?.Dispose();
             decoder?.Dispose();
             audio?.Dispose();
@@ -417,6 +450,55 @@ public sealed unsafe class RtspStream : IDisposable
             Statistics = Statistics with { Fps = 0, BitrateKbps = 0 };
         }
         return hadFrames;
+    }
+
+    /// <summary>Reader thread: receives packets and queues them with their arrival time.</summary>
+    private void ReaderLoop(IntPtr fmtPtr, int videoIndex, int audioIndex, LivePacketQueue queue, JitterBuffer jitter, bool pace, long readTimeoutMs)
+    {
+        var fmt = (AVFormatContext*)fmtPtr;
+        AVPacket* pkt = ffmpeg.av_packet_alloc();
+        long paceStartTick = 0;
+        double paceStartPts = double.NaN;
+        try
+        {
+            while (!_stopRequested && !_restartRequested && !_sessionAbort)
+            {
+                Touch(readTimeoutMs);
+                int ret = ffmpeg.av_read_frame(fmt, pkt);
+                if (ret == ffmpeg.AVERROR(ffmpeg.EAGAIN)) continue;
+                if (ret < 0)
+                {
+                    if (_stopRequested || _restartRequested || _sessionAbort) break;
+                    queue.Fail(new FFmpegException(FFmpegHelper.FriendlyError(ret, _timedOut), ret));
+                    return;
+                }
+                int si = pkt->stream_index;
+                if (si != videoIndex && si != audioIndex) { ffmpeg.av_packet_unref(pkt); continue; }
+
+                // decode time stamp (monotonic in decode order); presentation time stamp only as fallback
+                long ts = pkt->dts != ffmpeg.AV_NOPTS_VALUE ? pkt->dts : pkt->pts;
+                double ptsMs = ts != ffmpeg.AV_NOPTS_VALUE ? ts * ffmpeg.av_q2d(fmt->streams[si]->time_base) * 1000 : double.NaN;
+                if (pace && si == videoIndex && !double.IsNaN(ptsMs))
+                {
+                    if (double.IsNaN(paceStartPts)) { paceStartPts = ptsMs; paceStartTick = Environment.TickCount64; }
+                    long wait = (long)(ptsMs - paceStartPts) - (Environment.TickCount64 - paceStartTick);
+                    if (wait > 0) _wake.Wait((int)Math.Min(wait, 1000));
+                }
+                long arrival = Environment.TickCount64;
+                if (si == videoIndex) jitter.Observe(arrival, ptsMs);
+                queue.Add(ffmpeg.av_packet_clone(pkt), arrival, ptsMs, si == videoIndex);
+                ffmpeg.av_packet_unref(pkt);
+            }
+        }
+        catch (Exception ex)
+        {
+            queue.Fail(ex);
+        }
+        finally
+        {
+            ffmpeg.av_packet_free(&pkt);
+            queue.Complete();
+        }
     }
 
     /// <summary>Decodes an audio packet if a sink is attached (decoder is created lazily, kept for the session).</summary>

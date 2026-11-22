@@ -2,6 +2,7 @@ using FFmpeg.AutoGen;
 using OpenReo.Core.Diagnostics;
 using OpenReo.Core.Localization;
 using OpenReo.Core.Models;
+using OpenReo.Video.Recordings;
 
 namespace OpenReo.Video;
 
@@ -139,6 +140,7 @@ public sealed unsafe class PlaybackSession : IDisposable
     private void PlayFile(string path, double startOffset)
     {
         AVFormatContext* fmt = null;
+        FragmentReader? reader = null;
         AVPacket* pkt = null;
         AVFrame* frame = null;
         VideoDecoder? decoder = null;
@@ -147,7 +149,19 @@ public sealed unsafe class PlaybackSession : IDisposable
         try
         {
             Error = null;
-            if (ffmpeg.avformat_open_input(&fmt, path, null, null) < 0) { fmt = null; throw new FFmpegException(Lang.T("Datei konnte nicht geöffnet werden.")); }
+            // Fragmented MP4 (Reolink FTP uploads): start FFmpeg directly at the right fragment
+            // instead of letting it read every fragment header of the file first.
+            // Time stamps then start at 0 for that fragment: time = baseTime + pts - origin.
+            var fmp4 = FragmentedMp4.TryOpen(path);
+            double baseTime = 0, origin = double.NaN;
+            if (fmp4 != null)
+            {
+                var start = fmp4.Locate(startOffset);
+                reader = fmp4.OpenAt(start.Fragment);
+                fmt = reader.Context;
+                baseTime = start.Time;
+            }
+            else if (ffmpeg.avformat_open_input(&fmt, path, null, null) < 0) { fmt = null; throw new FFmpegException(Lang.T("Datei konnte nicht geöffnet werden.")); }
             FFmpegHelper.ThrowIfError(ffmpeg.avformat_find_stream_info(fmt, null), "Stream-Analyse");
             int vi = ffmpeg.av_find_best_stream(fmt, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, null, 0);
             if (vi < 0) throw new FFmpegException(Lang.T("Kein Videostream gefunden."));
@@ -170,11 +184,26 @@ public sealed unsafe class PlaybackSession : IDisposable
             if (ai >= 0)
             {
                 fmt->streams[ai]->discard = AVDiscard.AVDISCARD_ALL;
-                _audioReader = AudioTrackReader.Open(path, startPts);
+                _audioReader = fmp4 != null ? AudioTrackReader.Open(fmp4) : AudioTrackReader.Open(path, startPts);
                 _audioResync = true;
             }
-            Duration = fmt->duration > 0 ? fmt->duration / (double)ffmpeg.AV_TIME_BASE : 0;
-            double skipUntil = DoSeek(fmt, vi, tb, startPts, startOffset, decoder, ref audio);
+            double skipUntil;
+            if (fmp4 != null)
+            {
+                // the length needs a few reads spread over the file – don't hold up the first frame
+                Duration = 0;
+                _ = Task.Run(() =>
+                {
+                    try { var d = fmp4.Duration; if (CurrentFile == path) Duration = d; }
+                    catch (Exception ex) { Log.Debug($"Duration of {path}: {ex.Message}"); }
+                });
+                skipUntil = startOffset;
+            }
+            else
+            {
+                Duration = fmt->duration > 0 ? fmt->duration / (double)ffmpeg.AV_TIME_BASE : 0;
+                skipUntil = DoSeek(fmt, vi, tb, startPts, startOffset, decoder, ref audio);
+            }
             Position = startOffset;
 
             long baseTick = 0;
@@ -195,7 +224,21 @@ public sealed unsafe class PlaybackSession : IDisposable
                 {
                     _audioQueue.Clear();
                     _clockValid = false;
-                    skipUntil = DoSeek(fmt, vi, tb, startPts, target, decoder, ref audio);
+                    if (fmp4 != null && reader != null)
+                    {
+                        var start = fmp4.Locate(target);
+                        reader.Dispose();
+                        reader = null;
+                        fmt = null;
+                        reader = fmp4.OpenAt(start.Fragment);
+                        fmt = reader.Context;
+                        if (ai >= 0) fmt->streams[ai]->discard = AVDiscard.AVDISCARD_ALL;
+                        decoder.Flush();
+                        baseTime = start.Time;
+                        origin = double.NaN;
+                        skipUntil = target;
+                    }
+                    else skipUntil = DoSeek(fmt, vi, tb, startPts, target, decoder, ref audio);
                     Position = target;
                     _timingReset = true;
                 }
@@ -229,13 +272,20 @@ public sealed unsafe class PlaybackSession : IDisposable
                     continue;
                 }
                 if (pkt->stream_index != vi) { ffmpeg.av_packet_unref(pkt); continue; }
+                if (fmp4 != null && double.IsNaN(origin))
+                {
+                    long first = pkt->pts != ffmpeg.AV_NOPTS_VALUE ? pkt->pts : pkt->dts;
+                    if (first != ffmpeg.AV_NOPTS_VALUE) origin = first * tb;
+                }
 
                 decoder.Send(pkt);
                 ffmpeg.av_packet_unref(pkt);
                 while (decoder.Receive(frame) == 0)
                 {
                     long ts = frame->best_effort_timestamp != ffmpeg.AV_NOPTS_VALUE ? frame->best_effort_timestamp : frame->pts;
-                    double pos = ts != ffmpeg.AV_NOPTS_VALUE ? ts * tb - startPts : Position;
+                    double pos = ts == ffmpeg.AV_NOPTS_VALUE ? Position
+                        : fmp4 != null ? baseTime + ts * tb - (double.IsNaN(origin) ? 0 : origin)
+                        : ts * tb - startPts;
                     if (skipUntil >= 0 && pos < skipUntil - 0.02)
                     {
                         ffmpeg.av_frame_unref(frame); // decode up to the exact seek target without showing frames
@@ -287,7 +337,8 @@ public sealed unsafe class PlaybackSession : IDisposable
             decoder?.Dispose();
             audio?.Dispose();
             lock (_audioQueue) { _audioReader?.Dispose(); _audioReader = null; }
-            if (fmt != null) ffmpeg.avformat_close_input(&fmt);
+            if (reader != null) reader.Dispose(); // owns fmt
+            else if (fmt != null) ffmpeg.avformat_close_input(&fmt);
         }
     }
 
@@ -430,15 +481,49 @@ internal sealed unsafe class AudioTrackReader : IDisposable
     private bool _eof;
     private bool _failed;
 
+    // fragmented MP4: context starts at a fragment, time = _base + pts - _origin
+    private readonly FragmentedMp4? _fmp4;
+    private FragmentReader? _reader;
+    private double _base, _origin = double.NaN;
+
     private AudioTrackReader(AVFormatContext* fmt, int ai, double startPts)
     {
         _fmt = fmt;
         _ai = ai;
         _startPts = startPts;
         _tb = ffmpeg.av_q2d(fmt->streams[ai]->time_base);
-        for (int i = 0; i < fmt->nb_streams; i++)
-            if (i != ai) fmt->streams[i]->discard = AVDiscard.AVDISCARD_ALL; // skip the video data cheaply
+        DiscardOthers();
         _pkt = ffmpeg.av_packet_alloc();
+    }
+
+    private AudioTrackReader(FragmentedMp4 fmp4, FragmentReader reader, int ai) : this(reader.Context, ai, 0)
+    {
+        _fmp4 = fmp4;
+        _reader = reader;
+    }
+
+    private void DiscardOthers()
+    {
+        for (int i = 0; i < _fmt->nb_streams; i++)
+            if (i != _ai) _fmt->streams[i]->discard = AVDiscard.AVDISCARD_ALL; // skip the video data cheaply
+    }
+
+    public static AudioTrackReader? Open(FragmentedMp4 fmp4)
+    {
+        FragmentReader? reader = null;
+        try
+        {
+            reader = fmp4.OpenAt(fmp4.Locate(0).Fragment);
+            int ai = ffmpeg.av_find_best_stream(reader.Context, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, -1, null, 0);
+            if (ai < 0) { reader.Dispose(); return null; }
+            return new AudioTrackReader(fmp4, reader, ai);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug($"Audio reader for {fmp4.Path}: {ex.Message}");
+            reader?.Dispose();
+            return null;
+        }
     }
 
     public static AudioTrackReader? Open(string path, double startPts)
@@ -463,8 +548,31 @@ internal sealed unsafe class AudioTrackReader : IDisposable
     public void Seek(double seconds)
     {
         if (_failed) return;
-        long ts = (long)((seconds + _startPts) / _tb);
-        ffmpeg.av_seek_frame(_fmt, _ai, ts, ffmpeg.AVSEEK_FLAG_BACKWARD);
+        if (_fmp4 != null)
+        {
+            try
+            {
+                var start = _fmp4.Locate(seconds);
+                _reader?.Dispose();
+                _reader = null;
+                _fmt = null;
+                _reader = _fmp4.OpenAt(start.Fragment);
+                _fmt = _reader.Context;
+                DiscardOthers();
+                _base = start.Time;
+                _origin = double.NaN;
+            }
+            catch (Exception ex)
+            {
+                _failed = true;
+                Log.Debug($"Playback audio seek: {ex.Message}");
+            }
+        }
+        else
+        {
+            long ts = (long)((seconds + _startPts) / _tb);
+            ffmpeg.av_seek_frame(_fmt, _ai, ts, ffmpeg.AVSEEK_FLAG_BACKWARD);
+        }
         _decoder?.Dispose();
         _decoder = null;
         _eof = false;
@@ -481,7 +589,14 @@ internal sealed unsafe class AudioTrackReader : IDisposable
             try
             {
                 if (_pkt->stream_index != _ai) continue;
-                double pts = _pkt->pts != ffmpeg.AV_NOPTS_VALUE ? _pkt->pts * _tb - _startPts : queue.LastPts;
+                double pts;
+                if (_pkt->pts == ffmpeg.AV_NOPTS_VALUE) pts = queue.LastPts;
+                else if (_fmp4 != null)
+                {
+                    if (double.IsNaN(_origin)) _origin = _pkt->pts * _tb;
+                    pts = _base + _pkt->pts * _tb - _origin;
+                }
+                else pts = _pkt->pts * _tb - _startPts;
                 _decoder ??= new AudioDecoder(_fmt->streams[_ai]->codecpar);
                 queue.BeginPacket(pts);
                 _decoder.Decode(_pkt, queue);
@@ -503,6 +618,7 @@ internal sealed unsafe class AudioTrackReader : IDisposable
         _decoder?.Dispose();
         _decoder = null;
         if (_pkt != null) { var p = _pkt; ffmpeg.av_packet_free(&p); _pkt = null; }
-        if (_fmt != null) { var f = _fmt; ffmpeg.avformat_close_input(&f); _fmt = null; }
+        if (_reader != null) { _reader.Dispose(); _reader = null; _fmt = null; } // owns _fmt
+        else if (_fmt != null) { var f = _fmt; ffmpeg.avformat_close_input(&f); _fmt = null; }
     }
 }

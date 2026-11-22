@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using OpenReo.App.Audio;
@@ -59,6 +60,7 @@ public partial class PlaybackWindow : Window
 
         SpeedBox.SelectedIndex = 2; // 1×
         Timeline.SeekRequested += t => SeekTo(t);
+        Timeline.MarkerHover += OnMarkerHover;
         VideoHost.SizeChanged += (_, _) => UpdateTargetSize();
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -133,8 +135,9 @@ public partial class PlaybackWindow : Window
         // jump to the first recording of the day when the user picks another day
         if (_current == null || _current.Start.Date != day)
         {
+            // the first file may have started before midnight: open it at 00:00 of the chosen day
             var first = _index.FilesOn(day).FirstOrDefault();
-            if (first != null) OpenFile(first, 0);
+            if (first != null) OpenFile(first, Math.Max(0, (day - first.Start).TotalSeconds));
         }
     }
 
@@ -151,13 +154,70 @@ public partial class PlaybackWindow : Window
         if (_index == null) return;
         var files = _index.FilesOn(day);
         Timeline.SetDay(day, Segments(files));
-        // exact durations in the background → time line becomes precise
+        _daySnapshots = _index.SnapshotsOn(day);
+        Timeline.SetMarkers(_daySnapshots.Select(s => s.Time).ToList());
+        // durations that are not known from the file times yet: read in the background
         var progress = new Progress<RecordingFile>(_ => { if (Timeline.Day == day.Date) Timeline.SetSegments(Segments(files)); });
         _ = RecordingIndex.LoadDurationsAsync(files, progress, _cts.Token).ContinueWith(_ => { }, TaskScheduler.Default);
     }
 
     private static List<(DateTime, DateTime, bool)> Segments(IEnumerable<RecordingFile> files) =>
-        files.Select(f => (f.Start, f.End, f.Duration != null)).ToList();
+        files.Select(f => (f.Start, f.End, f.HasReliableDuration)).ToList();
+
+    // =====================================================================
+    // Event markers (snapshots uploaded by the camera)
+    // =====================================================================
+
+    private IReadOnlyList<RecordingSnapshot> _daySnapshots = Array.Empty<RecordingSnapshot>();
+    private readonly Dictionary<string, BitmapSource> _thumbnails = new();
+    private int? _previewIndex;
+
+    private async void OnMarkerHover(int? index, double x)
+    {
+        _previewIndex = index;
+        if (index is not int i || i >= _daySnapshots.Count)
+        {
+            PreviewPopup.IsOpen = false;
+            return;
+        }
+        var snap = _daySnapshots[i];
+        PreviewText.Text = Lang.F("Ereignis {0}", snap.Time.ToString("HH:mm:ss", CultureInfo.CurrentCulture));
+        PreviewPopup.HorizontalOffset = Math.Clamp(x - 164, 0, Math.Max(0, Timeline.ActualWidth - 328));
+        PreviewPopup.IsOpen = true;
+        if (_thumbnails.TryGetValue(snap.Path, out var cached))
+        {
+            ShowPreview(cached);
+            return;
+        }
+        ShowPreview(null);
+        BitmapSource? image = null;
+        try { image = await Task.Run(() => LoadThumbnail(snap.Path)); }
+        catch (Exception ex) { Log.Debug($"Snapshot {snap.Path}: {ex.Message}"); }
+        if (image == null) { if (_previewIndex == index) PreviewLoading.Text = "–"; return; }
+        if (_thumbnails.Count > 200) _thumbnails.Clear();
+        _thumbnails[snap.Path] = image;
+        if (_previewIndex == index) ShowPreview(image); // still on the same marker
+    }
+
+    private void ShowPreview(BitmapSource? image)
+    {
+        PreviewImage.Source = image;
+        PreviewLoading.Text = "…";
+        PreviewLoading.Visibility = image == null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static BitmapSource LoadThumbnail(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var bmp = new BitmapImage();
+        bmp.BeginInit();
+        bmp.CacheOption = BitmapCacheOption.OnLoad;
+        bmp.DecodePixelWidth = 320;
+        bmp.StreamSource = stream;
+        bmp.EndInit();
+        bmp.Freeze();
+        return bmp;
+    }
 
     // =====================================================================
     // Playback control
@@ -169,7 +229,8 @@ public partial class PlaybackWindow : Window
         _session.Open(file.Path, offset);
         FileText.Text = file.FileName;
         FileText.ToolTip = file.Path;
-        if (Timeline.Day != file.Start.Date) SelectDay(file.Start.Date);
+        var day = file.Start.AddSeconds(offset).Date; // day of the playback position, not of the file start
+        if (Timeline.Day != day) SelectDay(day);
         ShowStatus(null);
     }
 
@@ -309,6 +370,12 @@ public partial class PlaybackWindow : Window
     private void UpdatePosition()
     {
         if (CurrentTime is not DateTime t) return;
+        // the player knows the exact length of the file → time line becomes exact for it
+        if (_current is { Duration: null } cur && _session.CurrentFile == cur.Path && _session.Duration > 0)
+        {
+            cur.Duration = TimeSpan.FromSeconds(_session.Duration);
+            if (_index != null && Timeline.Day == cur.Start.Date) Timeline.SetSegments(Segments(_index.FilesOn(cur.Start.Date)));
+        }
         Timeline.Position = t;
         var text = t.ToString("ddd, dd.MM.yyyy  HH:mm:ss", CultureInfo.CurrentCulture);
         TimeText.Text = text;

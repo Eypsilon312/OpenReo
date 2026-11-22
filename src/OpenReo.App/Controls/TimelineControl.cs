@@ -6,8 +6,9 @@ using System.Windows.Media;
 namespace OpenReo.App.Controls;
 
 /// <summary>
-/// Time line of one day with the recorded segments.
-/// Mouse wheel: zoom (24 h … 5 min) around the cursor · drag: scroll · click: jump to that time.
+/// Time line of one day with the recorded segments and event markers (camera snapshots).
+/// Mouse wheel: zoom (24 h … 5 min) around the cursor · drag: scroll · click: jump to that time
+/// (or to the marker under the cursor).
 /// </summary>
 public sealed class TimelineControl : FrameworkElement
 {
@@ -23,8 +24,13 @@ public sealed class TimelineControl : FrameworkElement
     private readonly Brush _text = new SolidColorBrush(Color.FromRgb(0x8D, 0x95, 0xA5));
     private readonly Brush _labelBg = new SolidColorBrush(Color.FromArgb(0xE0, 0x22, 0x26, 0x30));
     private readonly Typeface _font = new("Segoe UI");
+    private readonly Brush _marker = new SolidColorBrush(Color.FromRgb(0x60, 0xA5, 0xFA));
+    private readonly Pen _markerLine = new(new SolidColorBrush(Color.FromArgb(0x70, 0x60, 0xA5, 0xFA)), 1);
+    private const double MarkerHitDistance = 6;
 
     private IReadOnlyList<(DateTime Start, DateTime End, bool Exact)> _segments = Array.Empty<(DateTime, DateTime, bool)>();
+    private IReadOnlyList<DateTime> _markers = Array.Empty<DateTime>();
+    private int? _hoverMarker;
     private DateTime _day = DateTime.Today;
     private DateTime _viewStart = DateTime.Today;
     private TimeSpan _viewSpan = MaxSpan;
@@ -36,6 +42,9 @@ public sealed class TimelineControl : FrameworkElement
 
     /// <summary>Raised when the user clicked a time.</summary>
     public event Action<DateTime>? SeekRequested;
+
+    /// <summary>Mouse moved onto a marker (index into the markers, x position) or off it (null).</summary>
+    public event Action<int?, double>? MarkerHover;
 
     public TimelineControl()
     {
@@ -60,6 +69,34 @@ public sealed class TimelineControl : FrameworkElement
     {
         _segments = segments;
         InvalidateVisual();
+    }
+
+    /// <summary>Event markers (sorted by time).</summary>
+    public void SetMarkers(IReadOnlyList<DateTime> markers)
+    {
+        _markers = markers;
+        SetHoverMarker(null, 0);
+        InvalidateVisual();
+    }
+
+    /// <summary>Marker closest to x (within a few pixels), or null.</summary>
+    private int? MarkerAt(double x)
+    {
+        int? best = null;
+        double bestDist = MarkerHitDistance;
+        for (int i = 0; i < _markers.Count; i++)
+        {
+            double d = Math.Abs(X(_markers[i]) - x);
+            if (d <= bestDist) { bestDist = d; best = i; }
+        }
+        return best;
+    }
+
+    private void SetHoverMarker(int? index, double x)
+    {
+        if (index == _hoverMarker) return;
+        _hoverMarker = index;
+        MarkerHover?.Invoke(index, index is int i ? X(_markers[i]) : x);
     }
 
     /// <summary>Current playback time (keeps the playhead visible while zoomed in).</summary>
@@ -97,6 +134,26 @@ public sealed class TimelineControl : FrameworkElement
             double x1 = Math.Max(0, X(s)), x2 = Math.Min(w, X(e));
             if (x2 - x1 < 1) x2 = x1 + 1;
             dc.DrawRectangle(exact ? _segment : _segmentDim, null, new Rect(x1, barTop, x2 - x1, barH));
+        }
+
+        // event markers: small triangle above the bar + thin line through it
+        for (int i = 0; i < _markers.Count; i++)
+        {
+            var m = _markers[i];
+            if (m < _viewStart || m > _viewStart + _viewSpan) continue;
+            double x = X(m);
+            bool hot = i == _hoverMarker;
+            double s = hot ? 5.5 : 4;
+            dc.DrawLine(_markerLine, new Point(x, barTop), new Point(x, barTop + barH));
+            var tri = new StreamGeometry();
+            using (var g = tri.Open())
+            {
+                g.BeginFigure(new Point(x - s, barTop - s - 2), true, true);
+                g.LineTo(new Point(x + s, barTop - s - 2), false, false);
+                g.LineTo(new Point(x, barTop - 1), false, false);
+            }
+            tri.Freeze();
+            dc.DrawGeometry(hot ? Brushes.White : _marker, null, tri);
         }
 
         // ticks + labels
@@ -183,6 +240,7 @@ public sealed class TimelineControl : FrameworkElement
                 Cursor = Cursors.SizeWE;
             }
         }
+        SetHoverMarker(_dragging ? null : MarkerAt(p.X), p.X);
         InvalidateVisual();
     }
 
@@ -190,7 +248,11 @@ public sealed class TimelineControl : FrameworkElement
     {
         ReleaseMouseCapture();
         Cursor = Cursors.Hand;
-        if (_mouseDown != null && !_dragging) SeekRequested?.Invoke(T(e.GetPosition(this).X));
+        if (_mouseDown != null && !_dragging)
+        {
+            double x = e.GetPosition(this).X;
+            SeekRequested?.Invoke(MarkerAt(x) is int i ? _markers[i] : T(x)); // snap to a marker
+        }
         _mouseDown = null;
         _dragging = false;
         InvalidateVisual();
@@ -199,6 +261,7 @@ public sealed class TimelineControl : FrameworkElement
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         _hoverX = null;
+        SetHoverMarker(null, 0);
         InvalidateVisual();
     }
 }

@@ -41,6 +41,16 @@
         </Grid>
         <TextBlock x:Name="HwInfoText" Style="{StaticResource DimText}" FontSize="11.5" Margin="0,6,0,0" TextWrapping="Wrap" />
         <CheckBox x:Name="LowLatencyBox" Content="{l:T 'Niedrige Latenz (minimale Pufferung)'}" Margin="0,12,0,0" />
+        <Label Content="{l:T 'Ausgleichspuffer im Live-Bild'}" Margin="0,12,0,0" />
+        <ComboBox x:Name="LiveBufferBox" Width="300" HorizontalAlignment="Left">
+            <ComboBoxItem Content="{l:T 'Aus – minimale Verzögerung'}" Tag="0" />
+            <ComboBoxItem Content="{l:T 'Automatisch, max. 0,5 s'}" Tag="500" />
+            <ComboBoxItem Content="{l:T 'Automatisch, max. 1 s'}" Tag="1000" />
+            <ComboBoxItem Content="{l:T 'Automatisch, max. 1,5 s'}" Tag="1500" />
+            <ComboBoxItem Content="{l:T 'Automatisch, max. 2 s'}" Tag="2000" />
+        </ComboBox>
+        <TextBlock Style="{StaticResource DimText}" FontSize="11.5" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="{l:T 'Gleicht stoßweise ankommende Bilder aus (z. B. WLAN) und spielt sie gleichmäßig ab – auf Kosten der Verzögerung. Bilder, die die Kamera gar nicht sendet, kann kein Puffer ersetzen.'}" />
 
         <TextBlock Text="{l:T 'VERBINDUNG'}" Style="{StaticResource SectionHeader}" Margin="0,20,0,6" />
         <Grid>
